@@ -223,13 +223,28 @@
      Hidden by default; shown (and the graph hidden) on phones.
      ============================================================ */
   #mobileApp { display: none; }
+  #mGraphBar { display: none; }
   body.is-mobile { overflow: hidden; }
+  /* default (Story) mode: feed shown, graph hidden */
   body.is-mobile #app { display: none !important; }
+  body.is-mobile header { display: none !important; }   /* desktop header replaced by app chrome */
   body.is-mobile #mobileApp {
     display: flex; flex-direction: column;
     position: fixed; inset: 0; z-index: 50;
     background: var(--bg);
   }
+  /* Graph mode: show the real connected graph full-screen, hide the feed */
+  body.is-mobile.mobile-graph #app { display: block !important; }
+  body.is-mobile.mobile-graph #mobileApp { display: none; }
+  body.is-mobile.mobile-graph #mGraphBar {
+    display: flex; align-items: center; gap: 10px;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 55;
+    padding: max(10px, env(safe-area-inset-top)) 14px 11px;
+    background: linear-gradient(180deg, var(--bg) 75%, transparent);
+    pointer-events: none;
+  }
+  #mGraphBar .mdBack, #mGraphBar .mIcon { pointer-events: auto; }
+  #mGraphBar .lbl { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.3; }
 
   /* Top bar */
   .mTop {
@@ -257,6 +272,19 @@
     border-radius: 12px; outline: none;
   }
   .mSearch::placeholder { color: var(--muted); }
+
+  /* Segmented Story / Graph toggle */
+  .mSeg {
+    display: flex; gap: 3px; margin-top: 12px; padding: 3px;
+    background: var(--inputBg); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .mSeg button {
+    flex: 1; border: none; background: transparent; color: var(--muted);
+    font-size: 13.5px; font-weight: 600; padding: 9px 0; border-radius: 9px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; display: flex;
+    align-items: center; justify-content: center; gap: 6px; transition: all .15s;
+  }
+  .mSeg button.active { background: var(--accent); color: var(--bg); }
 
   /* Field filter chips (horizontal scroll) */
   .mFilters {
@@ -374,10 +402,21 @@
       <div class="mIcon" id="mThemeBtn" title="Theme">◐</div>
     </div>
     <p class="sub">The story of AI, one breakthrough at a time. Scroll the timeline; tap any moment for the full story.</p>
+    <div class="mSeg">
+      <button id="segStory" class="active">☰&nbsp; Story</button>
+      <button id="segGraph">⬡&nbsp; Graph</button>
+    </div>
     <input class="mSearch" id="mSearch" type="search" placeholder="Search 54 breakthroughs…" autocomplete="off" />
     <div class="mFilters" id="mFilters"></div>
   </div>
   <div class="mFeed" id="mFeed"></div>
+</div>
+
+<!-- Graph-mode floating top bar (shown only in mobile graph view) -->
+<div id="mGraphBar">
+  <div class="mdBack" id="mGraphBack">‹</div>
+  <span class="lbl">Pinch to zoom · drag to pan · tap a node</span>
+  <div class="mIcon" id="mGraphFit">⊡</div>
 </div>
 
 <!-- Full-screen detail view -->
@@ -943,7 +982,7 @@ nodeSel.append("circle")
   .style("filter", d => d.key ? "drop-shadow(0 0 6px " + catColor(d.cat) + ")" : "none")
   .on("mouseover", (e,d) => highlight(d))
   .on("mouseout", clearHighlight)
-  .on("click", (e,d) => { e.stopPropagation(); openPanel(d); });
+  .on("click", (e,d) => { e.stopPropagation(); if (window.__openMobileDetail) window.__openMobileDetail(d); else openPanel(d); });
 
 nodeSel.append("text")
   .attr("dy", d => d.labelAbove ? -(d.r + 7) : (d.r + 13))
@@ -1326,20 +1365,27 @@ document.querySelectorAll("#themebar .tbtn").forEach(btn => {
 });
 
 // ============================================================
-//  DESKTOP graph init — only runs on non-mobile.
+//  Graph init — runs on BOTH desktop and mobile. On mobile the
+//  connected graph (our signature view) stays ready behind the
+//  Story feed and appears when the user taps the "Graph" toggle.
 // ============================================================
 const MOBILE = isMobile();
-if (!MOBILE) {
-  setTimeout(() => { const h=document.getElementById("hint"); if(h) h.style.opacity="0"; }, 8000);
-  vertical = false;
-  seedPositions();
-  setTimelineForces();
-  drawTimelineDecor();
-  settle(450);
-  updateLabels();
-  layoutLabels();
-  applyTheme("muted");
-  fitTimeline(0);
+setTimeout(() => { const h=document.getElementById("hint"); if(h) h.style.opacity="0"; }, 8000);
+vertical = MOBILE;                       // phones use the vertical, scroll-down graph
+seedPositions();
+setTimelineForces();
+drawTimelineDecor();
+settle(450);
+updateLabels();
+layoutLabels();
+applyTheme("muted");
+fitTimeline(0);
+if (MOBILE) {
+  // graph starts hidden; hint not needed (graph bar explains gestures)
+  const h = document.getElementById("hint"); if (h) h.style.display = "none";
+  document.getElementById("toggleLayout").style.display = "none"; // network toggle off on phones
+  document.getElementById("reset").style.display = "none";
+  document.getElementById("legendToggle") && (document.getElementById("legendToggle").style.display = "none");
 }
 
 // ============================================================
@@ -1350,20 +1396,38 @@ if (!MOBILE) {
   if (!MOBILE) return;
   document.body.classList.add("is-mobile");
 
-  // ---- theme handling (independent of the d3 graph) ----
+  // ---- theme handling (shared with the graph view) ----
   const order = ["muted","paper","vivid"];
   let themeIdx = 0;
   function setTheme(key) {
-    const t = THEMES[key] || THEMES.muted;
-    THEME = t;
-    const root = document.documentElement;
-    Object.entries(t.vars).forEach(([k,v]) => root.style.setProperty(k, v));
-    renderFilters(); renderFeed();           // repaint swatches/cards with new colors
+    applyTheme(key);                         // repaints the d3 graph (nodes, edges, lanes)
+    renderFilters(); renderFeed();           // repaint feed swatches/cards with new colors
   }
   document.getElementById("mThemeBtn").addEventListener("click", () => {
     themeIdx = (themeIdx + 1) % order.length;
     setTheme(order[themeIdx]);
   });
+
+  // ---- Story / Graph segmented toggle ----
+  const segStory = document.getElementById("segStory");
+  const segGraph = document.getElementById("segGraph");
+  function showGraph(on) {
+    document.body.classList.toggle("mobile-graph", on);
+    segGraph.classList.toggle("active", on);
+    segStory.classList.toggle("active", !on);
+    if (on) {
+      // (re)lay out now that the SVG is visible and has real dimensions
+      width = window.innerWidth; height = window.innerHeight;
+      svg.attr("viewBox", [0,0,width,height]);
+      vertical = true; seedPositions(); setTimelineForces(); drawTimelineDecor();
+      settle(220); layoutLabels(); fitTimeline(0);
+      history.pushState({ graph:true }, "");
+    }
+  }
+  segStory.addEventListener("click", () => { if (document.body.classList.contains("mobile-graph")) history.back(); });
+  segGraph.addEventListener("click", () => showGraph(true));
+  document.getElementById("mGraphBack").addEventListener("click", () => history.back());
+  document.getElementById("mGraphFit").addEventListener("click", () => fitTimeline(400));
 
   // ---- eras (for sticky section headers) ----
   const ERAS = [
@@ -1500,8 +1564,18 @@ if (!MOBILE) {
     if (!fromHistory && history.state && history.state.detail) history.back();
   }
   document.getElementById("mdBack").onclick = () => closeDetail();
-  // hardware/browser back button closes the detail view instead of leaving the page
-  window.addEventListener("popstate", () => { if (detailOpen) closeDetail(true); });
+  // expose so a node tap in the Graph view opens this same detail screen
+  window.__openMobileDetail = openDetail;
+
+  // Single back-button handler manages the whole nav stack:
+  // detail (top) → graph → feed (root). Back closes the topmost layer.
+  window.addEventListener("popstate", () => {
+    if (detailOpen) { closeDetail(true); return; }
+    if (document.body.classList.contains("mobile-graph")) {
+      document.body.classList.remove("mobile-graph");
+      segGraph.classList.remove("active"); segStory.classList.add("active");
+    }
+  });
 
   // ---- search ----
   const searchEl = document.getElementById("mSearch");
