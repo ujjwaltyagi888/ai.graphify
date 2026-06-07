@@ -780,6 +780,22 @@ nodeSel.append("text")
   .attr("dy", d => d.labelAbove ? -(d.r + 7) : (d.r + 13))
   .text(d => d.label);
 
+// Position labels for the current mode: beside the node (vertical) or above/below (horizontal)
+function layoutLabels() {
+  if (vertical) {
+    const mid = window.innerWidth / 2;
+    nodeSel.selectAll("text")
+      .attr("text-anchor", d => (d.x > mid ? "end" : "start"))      // flip so labels stay on-screen
+      .attr("dx", d => (d.x > mid ? -(d.r + 6) : (d.r + 6)))
+      .attr("dy", 4);
+  } else {
+    nodeSel.selectAll("text")
+      .attr("text-anchor", "middle")
+      .attr("dx", 0)
+      .attr("dy", d => d.labelAbove ? -(d.r + 7) : (d.r + 13));
+  }
+}
+
 // ---------- Layout constants (swimlane timeline) ----------
 const ORDER = ["foundations","symbolic","ml","neural","hardware","vision","nlp","rl","llm"];
 const laneIndex = new Map(ORDER.map((k,i)=>[k,i]));
@@ -797,11 +813,23 @@ const xScale = d3.scaleLinear()
 const clampYear = y => Math.max(yearExtent[0], Math.min(yearExtent[1], y));
 const laneCenter = cat => M.top + laneIndex.get(cat)*LANE_H + LANE_H/2;
 
+// ---------- Vertical timeline (mobile): time flows top→bottom ----------
+// Categories are NOT separate columns here (too narrow on a phone); instead nodes
+// are colored by field and the force layout spreads them across the width.
+let vertical = false;                 // set true on phones in timeline mode
+const MV = { top: 175, bottom: 90, left: 50, right: 14 };
+const INNER_HV = 3600;                // tall scroll canvas
+const VHV = MV.top + INNER_HV + MV.bottom;
+const yScaleV = d3.scaleLinear()
+  .domain([1940, 1970, 1990, 2010, 2017, 2025])
+  .range([MV.top, MV.top+0.16*INNER_HV, MV.top+0.30*INNER_HV, MV.top+0.55*INNER_HV, MV.top+0.74*INNER_HV, MV.top+INNER_HV]);
+
 // lane + year backdrop, drawn behind links/nodes
 const laneLayer = g.insert("g", ":first-child").attr("class","lanes").style("pointer-events","none");
 function drawTimelineDecor() {
   laneLayer.selectAll("*").remove();
   if (!timeline) return;
+  if (vertical) { drawVerticalDecor(); return; }
   ORDER.forEach((cat,i) => {
     const y = M.top + i*LANE_H;
     laneLayer.append("rect")
@@ -826,13 +854,44 @@ function drawTimelineDecor() {
     }
   }
 }
+function drawVerticalDecor() {
+  const x0 = MV.left - 6, x1 = width;          // gridlines span the viewport width at scale 1
+  for (let yr=1940; yr<=2025; yr+=5) {
+    const y = yScaleV(yr), major = yr%10===0;
+    laneLayer.append("line").attr("x1",x0).attr("x2", x1 + INNER_W) // long enough after zoom
+      .attr("y1",y).attr("y2",y)
+      .attr("stroke", major?THEME.gridMajor:THEME.grid)
+      .attr("stroke-dasharray", major?"none":"2,6");
+    if (major) {
+      laneLayer.append("text").attr("x", 10).attr("y", y-6)
+        .attr("fill",THEME.axisText).attr("font-size","15px").attr("font-weight",700).text(yr);
+    }
+  }
+}
 
 // seed initial positions at their timeline slot so the static settle converges fast
-NODES.forEach(n => { n.x = xScale(clampYear(n.year)); n.y = laneCenter(n.cat) + (n.labelAbove ? -8 : 8); });
+function seedPositions() {
+  if (vertical) {
+    const colX = cat => MV.left + 30 + (laneIndex.get(cat)/(ORDER.length-1)) * Math.max(120, (window.innerWidth - MV.left - 60));
+    NODES.forEach(n => { n.x = colX(n.cat); n.y = yScaleV(clampYear(n.year)); });
+  } else {
+    NODES.forEach(n => { n.x = xScale(clampYear(n.year)); n.y = laneCenter(n.cat) + (n.labelAbove ? -8 : 8); });
+  }
+}
+seedPositions();
 
 // ---------- Force simulation ----------
 const sim = d3.forceSimulation(NODES).on("tick", ticked).stop();
 function setTimelineForces() {
+  if (vertical) {
+    // time on the Y axis; spread across X by field so the column fills the width
+    const colX = cat => MV.left + 24 + (laneIndex.get(cat)/(ORDER.length-1)) * Math.max(120, (width - MV.left - 50));
+    sim.force("link", null).force("charge", d3.forceManyBody().strength(-55))
+       .force("y", d3.forceY(d => yScaleV(clampYear(d.year))).strength(0.92))
+       .force("x", d3.forceX(d => colX(d.cat)).strength(0.18))
+       .force("collide", d3.forceCollide(d => d.r+11).strength(1).iterations(4));
+    return;
+  }
   sim.force("link", null).force("charge", null)
      .force("x", d3.forceX(d => xScale(clampYear(d.year))).strength(1))
      .force("y", d3.forceY(d => laneCenter(d.cat)).strength(0.42))
@@ -941,10 +1000,20 @@ function closePanel() { pinned = null; panel.classList.remove("open"); clearHigh
 document.getElementById("panelClose").onclick = (e) => { e.stopPropagation(); closePanel(); };
 
 function focusNode(n, scale) {
+  if (vertical) {
+    // Keep current zoom; just scroll vertically so the node sits in the strip
+    // above the bottom sheet, and keep its real X (column already fills width).
+    const cur = d3.zoomTransform(svg.node());
+    const k = cur.k;
+    const focusY = height * 0.26;
+    const tx = cur.x;                              // don't shift horizontally
+    const ty = focusY - n.y*k;
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(k));
+    return;
+  }
   if (isMobile()) {
-    // Keep the node in the visible strip above the bottom-sheet panel.
     const k = scale || Math.max(0.85, d3.zoomTransform(svg.node()).k);
-    const focusY = height * 0.28;                 // upper third, clear of the sheet
+    const focusY = height * 0.28;
     const t = d3.zoomIdentity.translate(width/2 - n.x*k, focusY - n.y*k).scale(k);
     svg.transition().duration(550).call(zoom.transform, t);
     return;
@@ -992,8 +1061,11 @@ document.getElementById("toggleLayout").addEventListener("click", function() {
   this.textContent = isMobile() ? (timeline ? "Network" : "Timeline") : (timeline ? "Network view" : "Timeline view");
   laneLayer.style("display", timeline ? null : "none");
   if (timeline) {
-    setTimelineForces(); drawTimelineDecor(); settle(400); updateLabels(); fitTimeline(650);
+    vertical = isMobile();
+    seedPositions(); setTimelineForces(); drawTimelineDecor(); settle(400);
+    updateLabels(); layoutLabels(); fitTimeline(650);
   } else {
+    vertical = false; layoutLabels();
     setNetworkForces(); drawTimelineDecor(); updateLabels();
     sim.alpha(0.9).restart();
     setTimeout(() => fitNetwork(800), 1400);
@@ -1016,14 +1088,12 @@ document.getElementById("reset").addEventListener("click", () => {
 
 // ---------- Fit helpers ----------
 function fitTimeline(dur) {
-  if (isMobile()) {
-    // On phones, fitting all 9 lanes to height makes nodes microscopic.
-    // Instead scale so the lane stack is comfortably readable and let the user
-    // pan/scroll vertically & horizontally through the timeline.
-    const topGap = 150;                             // clear the wrapped header
-    const scale = Math.max(0.5, Math.min(1.0, (height - topGap) / (VH * 0.62)));
-    const tx = 16 - M.left*scale + 70*scale;        // show the first lane labels + earliest years
-    const ty = topGap - M.top*scale + 10;
+  if (vertical) {
+    // Vertical timeline: show the full width at scale 1, anchored to the top
+    // (earliest years) so the user simply scrolls DOWN through history.
+    const scale = 1;
+    const tx = 0;
+    const ty = 0;                                   // MV.top already leaves room under the header
     svg.transition().duration(dur||0).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
     return;
   }
@@ -1055,8 +1125,11 @@ window.addEventListener("resize", () => {
     width = window.innerWidth; height = window.innerHeight;
     lastW = width; lastH = height;
     svg.attr("viewBox", [0,0,width,height]);
-    if (timeline) { setTimelineForces(); settle(120); fitTimeline(0); }
-    else { setNetworkForces(); sim.alpha(0.3).restart(); }
+    if (timeline) {
+      vertical = isMobile();             // flip orientation if we crossed the breakpoint / rotated
+      seedPositions(); setTimelineForces(); drawTimelineDecor(); settle(160);
+      layoutLabels(); fitTimeline(0);
+    } else { setNetworkForces(); sim.alpha(0.3).restart(); }
   }, 180);
 });
 
@@ -1083,10 +1156,14 @@ document.querySelectorAll("#themebar .tbtn").forEach(btn => {
   btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
 });
 
-// device-aware hint
+// device-aware hint + subtitle
 (() => {
   const h = document.getElementById("hint");
-  if (h && isMobile()) h.textContent = "Drag to pan · pinch to zoom · tap a node for its story · ☰ filters fields";
+  if (isMobile()) {
+    if (h) h.textContent = "Scroll down through time · tap a node for its story · ☰ filters fields";
+    const sub = document.querySelector("header .title p");
+    if (sub) sub.textContent = "A timeline of every pivotal moment — scroll down through the decades; tap any node for the full story.";
+  }
   setTimeout(() => { if (h) h.style.opacity = "0"; }, 8000);
 })();
 
@@ -1094,10 +1171,13 @@ document.querySelectorAll("#themebar .tbtn").forEach(btn => {
 if (isMobile()) document.getElementById("toggleLayout").textContent = "Network";
 
 // ---------- Initial render (static timeline) ----------
+vertical = isMobile();                 // phones get the vertical, scroll-down timeline
+seedPositions();
 setTimelineForces();
 drawTimelineDecor();
 settle(450);
 updateLabels();
+layoutLabels();
 applyTheme("muted");
 fitTimeline(0);
 </script>
