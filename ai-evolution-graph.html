@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Web of AI — How Every Breakthrough Connects</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root {
+    /* defaults = Muted Dark theme; JS overrides these on theme switch */
+    --bg: #14181f;
+    --bg2: #181d26;
+    --bgGlow: #1c2430;
+    --panel: rgba(26, 31, 40, 0.86);
+    --border: rgba(150, 160, 180, 0.16);
+    --text: #d8dde4;
+    --muted: #8b929e;
+    --accent: #c2a25a;
+    --accentBg: rgba(194, 162, 90, 0.16);
+    --accentBorder: rgba(194, 162, 90, 0.5);
+    --inputBg: rgba(255, 255, 255, 0.04);
+    --hoverBg: rgba(255, 255, 255, 0.05);
+    --chipBg: rgba(255, 255, 255, 0.05);
+    --scroll: rgba(150, 160, 180, 0.28);
+    --shadow: rgba(0, 0, 0, 0.5);
+    --titleGrad: linear-gradient(90deg, #9fb0cc, #b9a587, #c2a25a);
+    --nodeStroke: #14181f;
+    --labelFill: #c4cbd4;
+    --labelStroke: #14181f;
+    --keyLabelFill: #f0f3f7;
+    --linkColor: #3c424e;
+    --linkHl: #aab4c4;
+    --dimOpacity: 0.12;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: radial-gradient(1200px 800px at 70% -10%, var(--bgGlow) 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    transition: background .4s ease, color .4s ease;
+  }
+  #app { position: fixed; inset: 0; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg:active { cursor: grabbing; }
+
+  /* Header */
+  header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 20px;
+    background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
+    pointer-events: none;
+  }
+  header .title { pointer-events: auto; }
+  header h1 {
+    margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.2px;
+    background: var(--titleGrad);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  header p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+  .controls input[type="search"] {
+    background: var(--inputBg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; font-size: 13px; width: 180px; outline: none;
+  }
+  .controls input[type="search"]::placeholder { color: var(--muted); }
+  .btn {
+    background: var(--inputBg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 13px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--accentBg); border-color: var(--accentBorder); }
+  .btn.active { background: var(--accentBg); border-color: var(--accentBorder); }
+
+  /* Legend */
+  #legend {
+    position: absolute; left: 18px; bottom: 18px; z-index: 20;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; backdrop-filter: blur(10px); max-width: 230px;
+  }
+  #legend h3 { margin: 0 0 9px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 3px 4px;
+    cursor: pointer; border-radius: 6px; user-select: none; transition: background .12s;
+  }
+  .legend-item:hover { background: var(--hoverBg); }
+  .legend-item.off { opacity: 0.32; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+
+  /* Detail panel */
+  #panel {
+    position: absolute; top: 70px; right: 18px; z-index: 20; width: 372px; max-height: calc(100% - 100px);
+    overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 20px 16px; backdrop-filter: blur(12px); transform: translateX(430px); transition: transform .28s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  #panel.open { transform: translateX(0); }
+  #panel .close { position: absolute; top: 12px; right: 14px; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
+  #panel .close:hover { color: var(--text); }
+  .badge { display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600; }
+  #panel h2 { margin: 10px 0 4px; font-size: 20px; line-height: 1.25; color: var(--text); }
+  #panel .year { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  #panel .who { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  #panel .desc { font-size: 13.5px; line-height: 1.6; color: var(--text); opacity: 0.92; }
+  #panel .desc.lead { font-size: 14.5px; line-height: 1.55; color: var(--text); font-weight: 500; opacity: 1; }
+  #panel .refs { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-style: italic; }
+  #panel .section-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 17px 0 7px; font-weight: 700; }
+  .chip {
+    display: inline-block; font-size: 12px; padding: 5px 10px; margin: 0 5px 6px 0; border-radius: 8px;
+    background: var(--chipBg); border: 1px solid var(--border); cursor: pointer; transition: all .12s; color: var(--text);
+  }
+  .chip:hover { background: var(--accentBg); border-color: var(--accentBorder); }
+  .chip.none { opacity: 0.45; cursor: default; border-style: dashed; }
+  .chip.none:hover { background: var(--chipBg); border-color: var(--border); }
+
+  /* Theme switcher */
+  #themebar { display: flex; gap: 4px; background: var(--inputBg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  #themebar .tbtn {
+    background: transparent; border: none; color: var(--muted); padding: 5px 10px; border-radius: 6px;
+    font-size: 12.5px; cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  #themebar .tbtn:hover { color: var(--text); }
+  #themebar .tbtn.active { background: var(--accent); color: var(--bg); font-weight: 600; }
+
+  /* graph elements */
+  .link { stroke: var(--linkColor); stroke-opacity: 0.5; fill: none; transition: stroke-opacity .2s, stroke .2s; }
+  .link.hl { stroke-opacity: 0.95; stroke: var(--linkHl); }
+  .node circle { cursor: pointer; stroke: var(--nodeStroke); stroke-width: 1.5px; transition: opacity .2s, fill .4s; }
+  .node text {
+    fill: var(--labelFill); font-size: 10.5px; pointer-events: none; text-anchor: middle;
+    paint-order: stroke; stroke: var(--labelStroke); stroke-width: 3px; stroke-linejoin: round; transition: opacity .2s;
+  }
+  .node.key text { font-size: 12px; fill: var(--keyLabelFill); font-weight: 600; }
+  .dim { opacity: var(--dimOpacity) !important; }
+  .hint {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 15;
+    font-size: 12px; color: var(--muted); background: var(--panel); padding: 7px 14px; border-radius: 20px;
+    border: 1px solid var(--border); pointer-events: none; transition: opacity .4s;
+  }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="title">
+      <h1>The Web of AI</h1>
+      <p>A timeline of every pivotal moment — read left to right, grouped by field, with edges showing what built on what.</p>
+    </div>
+    <div class="controls">
+      <div id="themebar">
+        <button class="tbtn active" data-theme="muted">Muted</button>
+        <button class="tbtn" data-theme="paper">Paper</button>
+        <button class="tbtn" data-theme="vivid">Vivid</button>
+      </div>
+      <input id="search" type="search" placeholder="Search a breakthrough…" autocomplete="off" />
+      <button id="toggleLayout" class="btn">Network view</button>
+      <button id="reset" class="btn">Fit</button>
+    </div>
+  </header>
+
+  <svg id="graph"></svg>
+
+  <div id="legend"><h3>Fields of AI &nbsp;·&nbsp; click to filter</h3></div>
+
+  <div id="panel">
+    <span class="close" id="panelClose">✕</span>
+    <span class="badge" id="pBadge"></span>
+    <h2 id="pTitle"></h2>
+    <div class="year" id="pYear"></div>
+    <div class="who" id="pWho"></div>
+    <div class="desc lead" id="pDesc"></div>
+    <div class="section-label" id="pWhatLbl">What happened</div>
+    <div class="desc" id="pWhat"></div>
+    <div class="section-label" id="pImpactLbl">Why it mattered</div>
+    <div class="desc" id="pImpact"></div>
+    <div class="section-label">Built on</div>
+    <div id="pIn"></div>
+    <div class="section-label">Made possible</div>
+    <div id="pOut"></div>
+    <div class="refs" id="pRefs"></div>
+  </div>
+
+  <div class="hint" id="hint">Read left → right through time · each row is a field of AI · hover to trace what built on what · click any node for the story</div>
+</div>
+
+<script>
+// ---------- Categories (names only; colors come from the active theme) ----------
+const CATS = {
+  foundations: { name: "Foundations & Theory" },
+  symbolic:    { name: "Symbolic AI" },
+  ml:          { name: "Classical ML" },
+  neural:      { name: "Neural / Deep Learning" },
+  hardware:    { name: "Hardware & Data" },
+  vision:      { name: "Generative & Vision" },
+  nlp:         { name: "Language & NLP" },
+  rl:          { name: "Reinforcement Learning" },
+  llm:         { name: "The LLM Era" },
+};
+
+// ---------- Themes ----------
+// Each theme defines category swatch colors + the CSS variables that paint the chrome.
+const THEMES = {
+  muted: {
+    label: "Muted Dark",
+    cats: {
+      foundations:"#6b7a9c", symbolic:"#b08a5a", ml:"#7a9a7e", neural:"#6f93a8",
+      hardware:"#8a8f99", vision:"#9a8aa8", nlp:"#a98a8a", rl:"#b3946a", llm:"#c2a25a",
+    },
+    vars: {
+      "--bg":"#14181f", "--bg2":"#181d26", "--bgGlow":"#1c2430",
+      "--panel":"rgba(26,31,40,0.86)", "--border":"rgba(150,160,180,0.16)",
+      "--text":"#d8dde4", "--muted":"#8b929e",
+      "--accent":"#c2a25a", "--accentBg":"rgba(194,162,90,0.16)", "--accentBorder":"rgba(194,162,90,0.5)",
+      "--inputBg":"rgba(255,255,255,0.04)", "--hoverBg":"rgba(255,255,255,0.05)", "--chipBg":"rgba(255,255,255,0.05)",
+      "--scroll":"rgba(150,160,180,0.28)", "--shadow":"rgba(0,0,0,0.5)",
+      "--titleGrad":"linear-gradient(90deg,#9fb0cc,#b9a587,#c2a25a)",
+      "--nodeStroke":"#14181f", "--labelFill":"#c4cbd4", "--labelStroke":"#14181f", "--keyLabelFill":"#f0f3f7",
+      "--linkColor":"#3c424e", "--linkHl":"#aab4c4", "--dimOpacity":"0.12",
+    },
+    grid:"rgba(150,170,200,0.10)", gridMajor:"rgba(150,170,200,0.20)",
+    axisText:"#7e8694", arrow:"#5a606e", arrowHl:"#aab4c4", laneAlt:[0.05,0.085],
+  },
+  paper: {
+    label: "Paper (light)",
+    cats: {
+      foundations:"#3d5a80", symbolic:"#9c6644", ml:"#5a7d5a", neural:"#2a7f8f",
+      hardware:"#6b6f76", vision:"#7d5a8f", nlp:"#a23b56", rl:"#b07d3f", llm:"#c08a2d",
+    },
+    vars: {
+      "--bg":"#f4f1ea", "--bg2":"#eceadf", "--bgGlow":"#fbfaf5",
+      "--panel":"rgba(252,250,244,0.94)", "--border":"rgba(60,55,45,0.16)",
+      "--text":"#2b2b2b", "--muted":"#6f6a60",
+      "--accent":"#9c6644", "--accentBg":"rgba(156,102,68,0.12)", "--accentBorder":"rgba(156,102,68,0.45)",
+      "--inputBg":"rgba(0,0,0,0.03)", "--hoverBg":"rgba(0,0,0,0.04)", "--chipBg":"rgba(0,0,0,0.03)",
+      "--scroll":"rgba(60,55,45,0.25)", "--shadow":"rgba(80,70,50,0.18)",
+      "--titleGrad":"linear-gradient(90deg,#3d5a80,#9c6644,#c08a2d)",
+      "--nodeStroke":"#f4f1ea", "--labelFill":"#3a362e", "--labelStroke":"#f4f1ea", "--keyLabelFill":"#1a1a1a",
+      "--linkColor":"#b9b2a3", "--linkHl":"#6b6457", "--dimOpacity":"0.14",
+    },
+    grid:"rgba(80,70,50,0.10)", gridMajor:"rgba(80,70,50,0.22)",
+    axisText:"#8a8170", arrow:"#b3aa98", arrowHl:"#6b6457", laneAlt:[0.06,0.11],
+  },
+  vivid: {
+    label: "Vivid (original)",
+    cats: {
+      foundations:"#8b94ff", symbolic:"#f0a44a", ml:"#4ade80", neural:"#38bdf8",
+      hardware:"#94a3b8", vision:"#2dd4bf", nlp:"#c084fc", rl:"#fb7185", llm:"#fbbf24",
+    },
+    vars: {
+      "--bg":"#0a0e17", "--bg2":"#0e1525", "--bgGlow":"#15203a",
+      "--panel":"rgba(18,25,40,0.82)", "--border":"rgba(120,140,200,0.18)",
+      "--text":"#e6edf6", "--muted":"#8b97ad",
+      "--accent":"#7aa2ff", "--accentBg":"rgba(122,162,255,0.2)", "--accentBorder":"rgba(122,162,255,0.55)",
+      "--inputBg":"rgba(255,255,255,0.04)", "--hoverBg":"rgba(255,255,255,0.05)", "--chipBg":"rgba(255,255,255,0.05)",
+      "--scroll":"rgba(120,140,200,0.25)", "--shadow":"rgba(0,0,0,0.5)",
+      "--titleGrad":"linear-gradient(90deg,#7aa2ff,#c084fc,#fbbf24)",
+      "--nodeStroke":"#0a0e17", "--labelFill":"#c8d2e2", "--labelStroke":"#0a0e17", "--keyLabelFill":"#ffffff",
+      "--linkColor":"#46506b", "--linkHl":"#aab6d6", "--dimOpacity":"0.12",
+    },
+    grid:"rgba(150,170,220,0.07)", gridMajor:"rgba(150,170,220,0.20)",
+    axisText:"#7886a0", arrow:"#5a6684", arrowHl:"#aab6d6", laneAlt:[0.045,0.085],
+  },
+};
+let THEME = THEMES.muted;
+const catColor = cat => THEME.cats[cat];
+
+// ---------- Nodes ----------
+const NODES = [
+  // Foundations
+  { id:"turing-machine", label:"Turing Machine", year:1936, cat:"foundations", key:true,
+    desc:"Alan Turing's model of universal computation — the bedrock idea that thinking might be mechanizable.",
+    who:"Alan Turing · University of Cambridge / Princeton",
+    what:"In 'On Computable Numbers,' Turing imagined a simple abstract device that reads and writes symbols on an infinite tape according to a table of rules. He proved a single 'universal' machine could simulate any other — and that some problems (like the halting problem) are provably uncomputable. This pinned down, mathematically, exactly what counts as 'computation.'",
+    impact:"Every computer and AI system is, in principle, a Turing machine. It established that mental processes might be reducible to mechanical symbol-manipulation — the philosophical permission slip for the entire field.",
+    refs:["Turing (1936), 'On Computable Numbers'"] },
+  { id:"bayes-rule", label:"Bayesian Inference", year:1763, cat:"foundations",
+    desc:"A rule for updating beliefs from evidence — the statistical heart of modern machine learning.",
+    who:"Rev. Thomas Bayes; published by Richard Price · England",
+    what:"Bayes' theorem states how to revise the probability of a hypothesis as new data arrives: posterior ∝ likelihood × prior. Dormant for centuries as a curiosity, it was revived in the 20th century as the formal language for reasoning under uncertainty.",
+    impact:"Probabilistic reasoning, spam filters, Bayesian networks and the loss functions of modern ML all trace back here. It reframed learning as belief-updating from data rather than hand-coded rules.",
+    refs:["Bayes & Price (1763)"] },
+  { id:"info-theory", label:"Information Theory", year:1948, cat:"foundations",
+    desc:"Shannon quantified information as bits and entropy — a math language for uncertainty and prediction.",
+    who:"Claude Shannon · Bell Labs",
+    what:"'A Mathematical Theory of Communication' defined information in terms of bits, entropy (how surprising a source is) and channel capacity. Shannon showed how much a message can be compressed and how reliably it can be sent over a noisy channel.",
+    impact:"Cross-entropy loss — the objective that trains nearly every classifier and language model — is a direct descendant. Prediction, compression and learning turn out to be deeply the same problem.",
+    refs:["Shannon (1948)"] },
+  { id:"turing-test", label:"Turing Test", year:1950, cat:"foundations", key:true,
+    desc:"Reframed 'can machines think?' into a concrete imitation game — the field's founding question.",
+    who:"Alan Turing · University of Manchester",
+    what:"In 'Computing Machinery and Intelligence,' Turing sidestepped the unanswerable question of machine consciousness with an operational test: if a human judge can't reliably tell a machine from a person in text conversation, we should grant it intelligence. He also pre-emptively rebutted nine common objections.",
+    impact:"It gave AI a north star and a benchmark mindset, and framed conversation as the proving ground for intelligence — a framing modern chatbots live up to 70+ years later.",
+    refs:["Turing (1950), Mind"] },
+  { id:"dartmouth", label:"Dartmouth Workshop", year:1956, cat:"foundations", key:true,
+    desc:"The summer workshop that named the field and launched it as a discipline.",
+    who:"McCarthy, Minsky, Shannon, Rochester · Dartmouth College",
+    what:"A two-month gathering proposed on the conjecture that 'every aspect of learning or any other feature of intelligence can in principle be so precisely described that a machine can be made to simulate it.' John McCarthy coined the term 'Artificial Intelligence' for the proposal.",
+    impact:"It convened the founding generation and gave the field its name, agenda and optimism. The symbolic, logic-first research program that dominated AI's first decades was set here.",
+    refs:["McCarthy et al. (1955 proposal)"] },
+
+  // Symbolic
+  { id:"logic-theorist", label:"Logic Theorist", year:1956, cat:"symbolic",
+    desc:"The program that proved math theorems by manipulating symbols — often called the first AI program.",
+    who:"Allen Newell, Herbert Simon, Cliff Shaw · RAND / Carnegie Mellon",
+    what:"Logic Theorist searched for proofs of theorems from Whitehead & Russell's Principia Mathematica, using heuristics to prune an otherwise explosive search tree. It found a proof more elegant than the original for one theorem.",
+    impact:"It demonstrated that machines could do 'reasoning,' not just arithmetic, and introduced heuristic search and list processing — ideas that defined symbolic AI for 30 years.",
+    refs:["Newell & Simon (1956)"] },
+  { id:"perceptron", label:"Perceptron", year:1958, cat:"symbolic", key:true,
+    desc:"The first model that learned its weights from data — the seed of all neural networks.",
+    who:"Frank Rosenblatt · Cornell Aeronautical Laboratory",
+    what:"The perceptron is a single artificial neuron: it weights its inputs, sums them, and fires if the sum crosses a threshold. Crucially, Rosenblatt gave it a learning rule that nudges the weights whenever it makes a mistake, so it improves from examples. It was built as physical hardware, the 'Mark I Perceptron.'",
+    impact:"This is the direct ancestor of every neuron in every deep network. It introduced learning-from-data as an alternative to hand-coded logic — and triggered the first wave of neural-network hype.",
+    refs:["Rosenblatt (1958)"] },
+  { id:"eliza", label:"ELIZA", year:1966, cat:"symbolic",
+    desc:"A pattern-matching 'therapist' chatbot that revealed how readily we project intelligence onto machines.",
+    who:"Joseph Weizenbaum · MIT",
+    what:"ELIZA's most famous script, DOCTOR, imitated a Rogerian psychotherapist by reflecting users' statements back as questions ('I am sad' → 'Why are you sad?'). It had no understanding whatsoever — just clever text substitution rules.",
+    impact:"Users formed emotional attachments and believed it understood them — the 'ELIZA effect.' It became an early warning about anthropomorphizing AI, a caution that resonates loudly in the chatbot era.",
+    refs:["Weizenbaum (1966)"] },
+  { id:"minsky-perceptrons", label:'"Perceptrons" Book', year:1969, cat:"symbolic",
+    desc:"Proved a single-layer perceptron can't learn XOR — froze the field, but pointed to hidden layers.",
+    who:"Marvin Minsky & Seymour Papert · MIT",
+    what:"The book rigorously analyzed what single-layer perceptrons can and cannot compute, proving they can't represent simple non-linear functions like XOR. The deeper (often-missed) point was that multi-layer networks could — but no one knew how to train them yet.",
+    impact:"Funding and interest in neural nets collapsed for over a decade. The gap it exposed — training multiple layers — is exactly what backpropagation would later fill.",
+    refs:["Minsky & Papert (1969)"] },
+  { id:"expert-systems", label:"Expert Systems", year:1972, cat:"symbolic",
+    desc:"Rule-based programs encoding human expertise as IF-THEN logic — commercial AI's first wave.",
+    who:"Feigenbaum, Shortliffe et al. · Stanford (DENDRAL, MYCIN)",
+    what:"Expert systems captured a specialist's knowledge as hundreds of hand-written IF-THEN rules plus an inference engine. MYCIN diagnosed blood infections; DENDRAL identified molecules. In the 1980s they became a billion-dollar industry.",
+    impact:"They proved AI could deliver commercial value — but were brittle, couldn't learn, and broke down outside their narrow domain. Their limits motivated the shift toward systems that learn from data.",
+    refs:["Shortliffe (MYCIN, 1976)"] },
+  { id:"ai-winter", label:"The AI Winter", year:1974, cat:"symbolic",
+    desc:"Overpromising met underdelivery; funding collapsed — pushing the field toward learning from data.",
+    who:"Triggered by the Lighthill Report (UK) & DARPA cuts (US)",
+    what:"After years of grand promises, results stalled against combinatorial explosion and brittle hand-coded knowledge. The 1973 Lighthill Report savaged the field's progress, and major funders pulled back. A second winter hit expert systems in the late 1980s.",
+    impact:"The disillusionment discredited pure symbolic approaches and, in the long run, cleared the ground for statistical, data-driven machine learning to take over in the 1990s.",
+    refs:["Lighthill Report (1973)"] },
+
+  // Classical ML
+  { id:"statistical-ml", label:"Statistical Learning", year:1990, cat:"ml",
+    desc:"The paradigm shift from hand-written rules to learning patterns from data.",
+    who:"Vapnik, Breiman, Tibshirani, Hastie & the ML community",
+    what:"Through the 1990s, AI's center of gravity moved from symbolic logic to statistics and optimization: estimate a function from labeled examples, then generalize. Concepts like the bias–variance tradeoff, regularization, cross-validation and generalization bounds became the field's foundation.",
+    impact:"This is the intellectual framework all of modern ML — including deep learning — still operates within. 'Let the data write the rules' became the dominant philosophy.",
+    refs:["Vapnik (1995); Hastie et al. (ESL)"] },
+  { id:"decision-trees", label:"Decision Trees", year:1986, cat:"ml",
+    desc:"Models that split data on a sequence of questions — interpretable, and the basis of ensemble methods.",
+    who:"Ross Quinlan (ID3/C4.5); Breiman et al. (CART)",
+    what:"A decision tree repeatedly splits the data on the most informative feature ('Is age > 30?'), forming a flowchart of questions that ends in a prediction. Splits are chosen to maximize information gain or reduce impurity.",
+    impact:"Trees are human-readable and need little data prep, but a single tree overfits. Fixing that weakness led directly to random forests and boosting — still the top performers on tabular data.",
+    refs:["Quinlan (1986); Breiman CART (1984)"] },
+  { id:"svm", label:"Support Vector Machines", year:1995, cat:"ml",
+    desc:"Found the optimal separating boundary with elegant math — the dominant method before deep learning.",
+    who:"Vladimir Vapnik & Corinna Cortes · Bell Labs",
+    what:"An SVM finds the decision boundary with the widest possible margin between classes, which generalizes well. The 'kernel trick' lets it draw curved boundaries by implicitly mapping data into very high-dimensional spaces without ever computing the coordinates.",
+    impact:"With strong theory and excellent accuracy on modest data, SVMs ruled classification through the 2000s. They set the performance bar that deep learning had to beat in 2012.",
+    refs:["Cortes & Vapnik (1995)"] },
+  { id:"boosting", label:"Boosting / AdaBoost", year:1997, cat:"ml",
+    desc:"Combine many weak learners into one strong one — the lineage that leads to XGBoost.",
+    who:"Yoav Freund & Robert Schapire (AdaBoost)",
+    what:"Boosting trains models in sequence, each one focusing on the examples the previous ones got wrong, then combines them by weighted vote. Gradient boosting later generalized this; XGBoost and LightGBM are its industrial-strength descendants.",
+    impact:"It answered a deep theoretical question (can weak learners combine into a strong one? — yes) and produced the algorithms that still win most tabular-data competitions today.",
+    refs:["Freund & Schapire (1997)"] },
+  { id:"random-forests", label:"Random Forests", year:2001, cat:"ml",
+    desc:"Ensembles of decorrelated decision trees — a robust, accurate workhorse of practical ML.",
+    who:"Leo Breiman · UC Berkeley",
+    what:"A random forest trains hundreds of decision trees, each on a random subset of the data and features, then averages their votes. The deliberate randomness decorrelates the trees so their errors cancel out.",
+    impact:"Accurate out-of-the-box, hard to overfit, and nearly tuning-free, it became one of the most widely deployed algorithms in industry and science — the default for tabular problems for two decades.",
+    refs:["Breiman (2001)"] },
+
+  // Neural / Deep Learning
+  { id:"backprop", label:"Backpropagation", year:1986, cat:"neural", key:true,
+    desc:"Training multi-layer networks via the chain rule — the algorithm that makes deep learning possible.",
+    who:"Rumelhart, Hinton & Williams (popularized) · UC San Diego / CMU",
+    what:"Backprop computes how much each weight in a network contributed to the final error by applying calculus's chain rule backward from output to input, then adjusts every weight a little to reduce that error. Run over millions of examples, it lets a deep stack of layers learn useful internal representations.",
+    impact:"This is THE training algorithm of deep learning — still what powers GPT and every modern net. It directly answered the multi-layer training gap that the 1969 Perceptrons critique had exposed.",
+    refs:["Rumelhart, Hinton & Williams (1986)"] },
+  { id:"lstm", label:"LSTM", year:1997, cat:"neural",
+    desc:"A recurrent cell that solved vanishing gradients — letting networks remember long sequences.",
+    who:"Sepp Hochreiter & Jürgen Schmidhuber · TU Munich",
+    what:"Plain recurrent nets forget quickly because gradients vanish over long sequences. The LSTM adds a protected memory cell with input/forget/output 'gates' that learn what to keep, update or discard — preserving information across hundreds of steps.",
+    impact:"For ~15 years LSTMs powered machine translation, speech recognition and text generation. They proved sequence modeling worked — and set the stage that attention and Transformers would later take over.",
+    refs:["Hochreiter & Schmidhuber (1997)"] },
+  { id:"lenet", label:"LeNet (CNN)", year:1998, cat:"neural",
+    desc:"The first practical deep CNN — read handwritten digits on bank checks, decades ahead of its hardware.",
+    who:"Yann LeCun et al. · AT&T Bell Labs",
+    what:"LeNet-5 introduced the convolutional architecture: layers of small learned filters that slide across an image detecting edges, then shapes, then objects, with pooling layers for translation invariance. It read handwritten ZIP codes and checks at scale.",
+    impact:"It defined the CNN blueprint that AlexNet would scale up 14 years later. The ideas were right; the world just lacked the data and compute to exploit them.",
+    refs:["LeCun et al. (1998)"] },
+  { id:"relu-dropout", label:"ReLU & Dropout", year:2011, cat:"neural",
+    desc:"Two simple tricks that made deep networks trainable and resistant to overfitting.",
+    who:"Glorot/Bengio (ReLU); Hinton, Srivastava et al. (Dropout)",
+    what:"ReLU (output = max(0, x)) replaced smooth activations that saturated and killed gradients, letting deep nets train far faster. Dropout randomly switches off neurons during training, forcing redundancy so the network doesn't overfit by memorizing.",
+    impact:"These unglamorous fixes removed the practical barriers to depth. Together with GPUs and data, they were the final ingredients that made AlexNet's 2012 breakthrough possible.",
+    refs:["Glorot et al. (2011); Srivastava et al. (2014)"] },
+  { id:"alexnet", label:"AlexNet", year:2012, cat:"neural", key:true,
+    desc:"A deep CNN that crushed ImageNet on GPUs — the 'big bang' of the deep learning revolution.",
+    who:"Alex Krizhevsky, Ilya Sutskever, Geoffrey Hinton · Univ. of Toronto",
+    what:"AlexNet was a deep convolutional network trained on two GPUs that won the 2012 ImageNet contest by a stunning margin — cutting top-5 error from ~26% to ~15%, far ahead of every hand-engineered competitor. It combined CNNs, ReLU, dropout, GPUs and big data all at once.",
+    impact:"It was the shot heard round the world: within a year, computer vision (and soon all of AI) pivoted to deep learning. The modern era starts here.",
+    refs:["Krizhevsky, Sutskever & Hinton (2012)"] },
+  { id:"batchnorm", label:"Batch Normalization", year:2015, cat:"neural",
+    desc:"Normalizing layer activations stabilized and sped up training, unlocking much deeper networks.",
+    who:"Sergey Ioffe & Christian Szegedy · Google",
+    what:"BatchNorm rescales the activations within each mini-batch to have stable mean and variance as they flow through the network. This tames the shifting distributions that otherwise make deep training slow and finicky, allowing higher learning rates.",
+    impact:"It became a near-universal default that made training deep nets dramatically easier and faster — a key enabler for very deep architectures like ResNet later that same year.",
+    refs:["Ioffe & Szegedy (2015)"] },
+  { id:"resnet", label:"ResNet", year:2015, cat:"neural",
+    desc:"Skip connections let networks go 100+ layers deep without degrading — now everywhere, including Transformers.",
+    who:"Kaiming He et al. · Microsoft Research",
+    what:"Counterintuitively, simply stacking more layers had made networks worse. ResNet added 'skip connections' that let a layer learn only the residual (the change) on top of its input, so signals and gradients flow straight through. This enabled networks 152 layers deep.",
+    impact:"It won ImageNet 2015 at superhuman accuracy and made extreme depth routine. Residual connections are now a structural staple of essentially every large model, Transformers included.",
+    refs:["He et al. (2015)"] },
+
+  // Hardware & Data
+  { id:"moores-law", label:"Moore's Law", year:1965, cat:"hardware",
+    desc:"Decades of exponentially cheaper compute — the quiet tailwind that made deep learning affordable.",
+    who:"Gordon Moore · Intel co-founder",
+    what:"Moore observed that the number of transistors on a chip roughly doubles every ~2 years, and predicted it would continue. For decades it did, delivering exponential growth in compute per dollar across the whole industry.",
+    impact:"Algorithms like CNNs and backprop were invented decades before they were practical. Moore's Law is why ideas that were hopeless in the 1990s became trivially trainable by the 2010s — compute caught up to the math.",
+    refs:["Moore (1965)"] },
+  { id:"big-data", label:"The Big Data Era", year:2005, cat:"hardware",
+    desc:"The web, smartphones and sensors created oceans of data — the fuel learning algorithms needed.",
+    who:"The internet, mobile, and Google/Hadoop-era infrastructure",
+    what:"The 2000s produced an explosion of digitized text, images, clicks and sensor readings, plus the distributed systems (MapReduce, Hadoop, cloud storage) to process them. Data went from scarce to effectively unlimited.",
+    impact:"Deep learning is data-hungry; without web-scale corpora it stays a curiosity. This abundance is the raw material that made ImageNet — and later, training LLMs on much of the internet — possible.",
+    refs:["Dean & Ghemawat, MapReduce (2004)"] },
+  { id:"gpu-cuda", label:"GPUs + CUDA", year:2007, cat:"hardware", key:true,
+    desc:"Graphics chips became general parallel processors — the compute engine of the deep learning boom.",
+    who:"NVIDIA (CUDA platform)",
+    what:"GPUs contain thousands of small cores built for the parallel arithmetic of rendering — which is exactly the matrix multiplication neural networks need. NVIDIA's CUDA (2007) let researchers program GPUs for general computation, turning week-long training runs into hours.",
+    impact:"GPUs are the literal engine of the deep learning era; AlexNet was trained on them in 2012. This lineage runs straight to today's H100/Blackwell clusters and the trillion-dollar AI compute economy.",
+    refs:["NVIDIA CUDA (2007)"] },
+  { id:"imagenet", label:"ImageNet", year:2009, cat:"hardware", key:true,
+    desc:"A 14M-image labeled dataset + annual contest that gave deep learning the data and benchmark to prove itself.",
+    who:"Fei-Fei Li et al. · Stanford / Princeton",
+    what:"ImageNet is a hand-labeled dataset of ~14 million images across 20,000+ categories, built via crowdsourcing. Its annual ILSVRC competition (from 2010) gave researchers a shared, hard benchmark to compete on.",
+    impact:"It supplied both the training data and the scoreboard that made AlexNet's 2012 win legible and decisive. 'Data as a research contribution' — and benchmark-driven progress — became central to the field.",
+    refs:["Deng, Li et al. (2009)"] },
+
+  // Generative & Vision
+  { id:"gan", label:"GANs", year:2014, cat:"vision", key:true,
+    desc:"Two networks in a duel — a generator vs a critic — that taught machines to create photorealistic images.",
+    who:"Ian Goodfellow et al. · Université de Montréal",
+    what:"A Generative Adversarial Network pits a 'generator' that fabricates images against a 'discriminator' that tries to spot fakes. They train against each other; as the critic gets sharper, the generator is forced to produce ever more realistic output, starting from pure noise.",
+    impact:"GANs launched modern generative AI for images — photorealistic faces, style transfer, deepfakes. They reframed generation as a game, and dominated image synthesis until diffusion models overtook them.",
+    refs:["Goodfellow et al. (2014)"] },
+  { id:"yolo", label:"YOLO Detection", year:2016, cat:"vision",
+    desc:"Real-time object detection in a single pass — eyes for self-driving cars and live video.",
+    who:"Joseph Redmon et al.",
+    what:"Earlier detectors ran a classifier over thousands of image regions, which was slow. 'You Only Look Once' reframed detection as a single regression: one network pass predicts all bounding boxes and classes at once, fast enough for live video.",
+    impact:"YOLO made real-time detection practical and ubiquitous — autonomous vehicles, surveillance, robotics, sports analytics. It showed how reframing a problem can unlock speed, not just accuracy.",
+    refs:["Redmon et al. (2016)"] },
+  { id:"diffusion", label:"Diffusion Models", year:2020, cat:"vision",
+    desc:"Generate images by learning to reverse a step-by-step noising process — more stable than GANs.",
+    who:"Ho, Jain, Abbeel (DDPM); Sohl-Dickstein et al. (2015)",
+    what:"Diffusion trains a model to undo noise: take a real image, add Gaussian noise in small steps until it's static, then teach a network to reverse each step. To generate, you start from pure noise and denoise into a coherent image, optionally guided by a text prompt.",
+    impact:"More stable to train and higher-quality than GANs, diffusion became the backbone of modern image, video and audio generation — DALL·E 2, Stable Diffusion, Midjourney, Sora.",
+    refs:["Ho, Jain & Abbeel, DDPM (2020)"] },
+  { id:"stable-diffusion", label:"DALL·E 2 / Stable Diffusion", year:2022, cat:"vision",
+    desc:"Text-to-image went mainstream and open-source — anyone could conjure an image from a prompt.",
+    who:"OpenAI (DALL·E 2); Stability AI, CompVis, Runway (Stable Diffusion)",
+    what:"These systems combined diffusion with text encoders (like CLIP) so a written prompt steers image generation. DALL·E 2 stunned the public in early 2022; Stable Diffusion's open-source August 2022 release let anyone run it on consumer GPUs.",
+    impact:"Generative imagery became a mass-market creative tool overnight, igniting both an explosion of applications and fierce debates over copyright, art and authenticity.",
+    refs:["Ramesh et al. (2022); Rombach et al. (2022)"] },
+
+  // Language & NLP
+  { id:"word2vec", label:"Word2Vec", year:2013, cat:"nlp",
+    desc:"Mapped words to vectors where meaning is geometry ('king − man + woman ≈ queen').",
+    who:"Tomáš Mikolov et al. · Google",
+    what:"Word2Vec learns a dense vector for each word by training a tiny network to predict a word from its neighbors (or vice versa). Words used in similar contexts end up near each other, and directions in the space capture relationships — so vector arithmetic reflects analogies.",
+    impact:"It made language numerically computable and showed neural nets learn meaningful structure unsupervised. Embeddings became the input layer of NLP and the conceptual seed of how Transformers represent tokens.",
+    refs:["Mikolov et al. (2013)"] },
+  { id:"seq2seq", label:"Seq2Seq", year:2014, cat:"nlp",
+    desc:"Encoder–decoder networks that map one sequence to another — the first wave of neural translation.",
+    who:"Sutskever, Vinyals, Le · Google; Cho et al.",
+    what:"One RNN (the encoder) reads an input sentence into a fixed vector; a second RNN (the decoder) generates the output sentence from it. This single framework handled translation, summarization and dialogue without task-specific engineering.",
+    impact:"It established the encoder–decoder pattern at the heart of modern translation and generation — but cramming a whole sentence into one fixed vector was a bottleneck that directly motivated attention.",
+    refs:["Sutskever et al. (2014)"] },
+  { id:"attention", label:"Attention Mechanism", year:2015, cat:"nlp", key:true,
+    desc:"Let models focus on the relevant input words dynamically — the idea that would eclipse recurrence.",
+    who:"Dzmitry Bahdanau, Kyunghyun Cho, Yoshua Bengio · Montréal",
+    what:"Instead of compressing the whole input into one vector, attention lets the decoder look back at all input words and compute a weighted focus over them for each output word — learning what to attend to. It removed the seq2seq bottleneck and made translation of long sentences far better.",
+    impact:"Attention was the conceptual breakthrough that, two years later, the Transformer would build everything around. 'Learn what to focus on' became the organizing principle of modern AI.",
+    refs:["Bahdanau, Cho & Bengio (2015)"] },
+  { id:"transformer", label:'Transformer ("Attention Is All You Need")', year:2017, cat:"nlp", key:true,
+    desc:"Dropped recurrence for pure attention — massively parallel, scalable, and the foundation of every modern LLM.",
+    who:"Vaswani et al. · Google Brain / Google Research",
+    what:"The Transformer removed recurrence entirely and built the model from self-attention (every token attends to every other token) plus feed-forward layers, residual connections and positional encodings. Because it processes a whole sequence in parallel, it trains vastly faster on GPUs and scales to enormous size.",
+    impact:"It is THE foundational architecture of the modern era — GPT, BERT, Claude, Gemini, AlphaFold and image/video models are all Transformers. Arguably the single most important AI paper of the 2010s.",
+    refs:["Vaswani et al. (2017)"] },
+  { id:"bert", label:"BERT", year:2018, cat:"nlp",
+    desc:"Bidirectional pretraining on masked text gave deep language understanding — and transformed search.",
+    who:"Devlin et al. · Google AI Language",
+    what:"BERT pretrains a Transformer encoder by masking random words and asking it to fill them in, reading context from both directions at once. The pretrained model is then fine-tuned on specific tasks with little extra data.",
+    impact:"It shattered NLP benchmarks and popularized the pretrain-then-fine-tune recipe. Google deployed it in Search within a year — one of the fastest research-to-billions-of-users transfers in AI.",
+    refs:["Devlin et al. (2018)"] },
+  { id:"gpt", label:"GPT", year:2018, cat:"nlp",
+    desc:"OpenAI's first Generative Pretrained Transformer — pretrain on raw text, then fine-tune.",
+    who:"Radford et al. · OpenAI",
+    what:"GPT-1 trained a Transformer decoder to predict the next word over a large book corpus, then fine-tuned for downstream tasks. Where BERT reads bidirectionally for understanding, GPT is generative and left-to-right — built to produce text.",
+    impact:"It set the template — generative pretraining at scale — that every later GPT and most chat assistants follow. The 'GP' in GPT starts the lineage that leads to ChatGPT.",
+    refs:["Radford et al. (2018)"] },
+  { id:"gpt2", label:"GPT-2", year:2019, cat:"nlp",
+    desc:"At 1.5B parameters, wrote startlingly coherent text — the first hint that scaling alone unlocks capability.",
+    who:"Radford et al. · OpenAI",
+    what:"GPT-2 scaled the same recipe to 1.5 billion parameters and far more web text. It generated multi-paragraph essays coherent enough that OpenAI initially withheld the full model, citing misuse concerns — a first for the field.",
+    impact:"It provided early evidence for the scaling hypothesis: make the model and data bigger and qualitatively new abilities emerge. It also kicked off the modern debate over responsible release of powerful models.",
+    refs:["Radford et al. (2019)"] },
+  { id:"gpt3", label:"GPT-3", year:2020, cat:"nlp", key:true,
+    desc:"175B parameters revealed few-shot learning — one model, many tasks from a prompt, no retraining.",
+    who:"Brown et al. · OpenAI",
+    what:"GPT-3 scaled to 175 billion parameters and demonstrated 'in-context learning': you can teach it a new task simply by showing a few examples in the prompt, with no weight updates. The same model translates, codes, writes and answers questions.",
+    impact:"It proved the scaling thesis decisively and launched the prompt-engineering paradigm and the API-as-product business model. Every chat assistant since descends from GPT-3.",
+    refs:["Brown et al. (2020)"] },
+
+  // Reinforcement Learning
+  { id:"q-learning", label:"Q-Learning", year:1989, cat:"rl",
+    desc:"Learning the value of actions by trial and error — the classic foundation of reinforcement learning.",
+    who:"Chris Watkins · University of Cambridge",
+    what:"Q-learning learns a table of 'Q-values' — the expected long-term reward of taking an action in a given state — by exploring an environment and updating estimates toward observed rewards plus the best future value. It needs no model of the world and provably converges to optimal play.",
+    impact:"It is the canonical RL algorithm taught to every student and the conceptual core of Deep Q-Networks. It formalized learning by reward, the paradigm behind game-playing AI and RLHF.",
+    refs:["Watkins (1989)"] },
+  { id:"dqn", label:"Deep Q-Network", year:2013, cat:"rl",
+    desc:"Fused Q-learning with deep nets to master Atari from raw pixels — proof that RL + deep learning scales.",
+    who:"Mnih et al. · DeepMind",
+    what:"DQN replaced Q-learning's lookup table with a deep CNN that maps raw screen pixels to action values, stabilized by experience replay and a target network. One architecture learned to play 49 Atari games, several at superhuman level, from pixels and score alone.",
+    impact:"It launched deep reinforcement learning and put DeepMind on the map. The same lineage leads directly to AlphaGo two years later.",
+    refs:["Mnih et al. (2013/2015)"] },
+  { id:"alphago", label:"AlphaGo", year:2016, cat:"rl", key:true,
+    desc:"Defeated Go champion Lee Sedol — a feat thought decades away — and put AI on the world's front pages.",
+    who:"Silver et al. · DeepMind",
+    what:"Go has more board positions than atoms in the universe, defeating brute-force search. AlphaGo combined deep neural networks (to evaluate positions and suggest moves) with Monte Carlo Tree Search, trained on human games then improved by self-play. It beat Lee Sedol 4–1 in 2016, including the famous creative 'Move 37.'",
+    impact:"A global, watershed moment that convinced the public and governments that deep learning was real. It showed intuition-like judgment in a domain long held to require human creativity.",
+    refs:["Silver et al. (2016)"] },
+  { id:"alphazero", label:"AlphaZero", year:2017, cat:"rl",
+    desc:"Mastered Go, chess and shogi from scratch via pure self-play — superhuman skill from first principles.",
+    who:"Silver et al. · DeepMind",
+    what:"AlphaZero discarded all human game data: given only the rules, it learned entirely by playing millions of games against itself, guided by a single neural net and tree search. In hours it surpassed the best humans and the best traditional engines in three different games.",
+    impact:"It demonstrated that superhuman ability can emerge from self-play and search alone, with no human knowledge — a profound statement about how far pure learning can go.",
+    refs:["Silver et al. (2017/2018)"] },
+  { id:"alphafold", label:"AlphaFold", year:2020, cat:"rl",
+    desc:"Solved the 50-year protein-folding grand challenge — AI delivering hard science, not just games.",
+    who:"Jumper, Hassabis et al. · DeepMind",
+    what:"Predicting a protein's 3D shape from its amino-acid sequence had stumped biology for half a century. AlphaFold 2, an attention-based deep network, predicted structures at near-experimental accuracy at the CASP14 contest, then released structures for ~200 million proteins.",
+    impact:"It transformed structural biology and drug discovery and is among AI's clearest scientific contributions — recognized with the 2024 Nobel Prize in Chemistry.",
+    refs:["Jumper et al. (2021); Nobel 2024"] },
+
+  // LLM Era
+  { id:"scaling-laws", label:"Scaling Laws", year:2020, cat:"llm",
+    desc:"Loss falls predictably with more data, compute and parameters — turning model-building into forecastable science.",
+    who:"Kaplan et al. · OpenAI; later Hoffmann et al. (Chinchilla) · DeepMind",
+    what:"By training many models of different sizes, researchers found that test loss decreases as a smooth power-law in model size, dataset size and compute. The 2022 Chinchilla result refined the recipe, showing most large models were under-trained on data for their size.",
+    impact:"Scaling laws let labs predict a model's capability before spending millions to train it. They justified the enormous bets behind GPT-3/4 and turned 'just make it bigger (correctly)' into a deliberate strategy.",
+    refs:["Kaplan et al. (2020); Hoffmann et al. (2022)"] },
+  { id:"rlhf", label:"RLHF", year:2017, cat:"llm",
+    desc:"Aligning models to human preferences — the technique that made raw LLMs helpful and safe to talk to.",
+    who:"Christiano et al. · OpenAI/DeepMind; applied to LLMs by OpenAI (2022)",
+    what:"Reinforcement Learning from Human Feedback collects human rankings of model outputs, trains a 'reward model' to imitate those preferences, then fine-tunes the LLM with RL to maximize that reward. It teaches a model to be helpful and follow instructions, not just predict likely text.",
+    impact:"RLHF is the bridge from a raw next-word predictor to a usable assistant. It's the key technique behind InstructGPT, ChatGPT and Claude — the reason talking to an LLM feels cooperative.",
+    refs:["Christiano et al. (2017); Ouyang et al. (2022)"] },
+  { id:"instructgpt", label:"InstructGPT", year:2022, cat:"llm",
+    desc:"Fine-tuned GPT-3 to follow instructions with RLHF — a smaller, aligned model users preferred over the giant.",
+    who:"Ouyang et al. · OpenAI",
+    what:"InstructGPT applied supervised instruction tuning plus RLHF to GPT-3. In evaluations, users preferred the 1.3B-parameter aligned model over the raw 175B one — alignment, not just size, drove usefulness, truthfulness and reduced toxicity.",
+    impact:"It proved the alignment recipe that ChatGPT shipped months later, and reframed the goal from 'bigger' to 'better aligned.' The direct technical precursor to the chatbot boom.",
+    refs:["Ouyang et al. (2022)"] },
+  { id:"chatgpt", label:"ChatGPT", year:2022, cat:"llm", key:true,
+    desc:"An aligned LLM wrapped in a chat box — 100M users in two months, the moment AI went mainstream.",
+    who:"OpenAI",
+    what:"Launched Nov 30 2022, ChatGPT put an InstructGPT-style model behind a simple, free, conversational interface that remembered the dialog. No API or prompt skills required — anyone could just talk to it.",
+    impact:"The fastest-growing consumer app in history at the time (~100M users in two months). It triggered the global generative-AI race, reshaped public expectations, and put a frontier model in hundreds of millions of hands.",
+    refs:["OpenAI (Nov 2022)"] },
+  { id:"claude", label:"Claude / Constitutional AI", year:2022, cat:"llm",
+    desc:"Anthropic's assistant, aligned via Constitutional AI — principles, not just human labels, guide behavior.",
+    who:"Anthropic",
+    what:"Constitutional AI reduces reliance on human feedback for harmlessness: the model critiques and revises its own responses against an explicit written set of principles (a 'constitution'), generating its own training signal (RLAIF). Claude is Anthropic's assistant built on this approach.",
+    impact:"It offered a more scalable, transparent and auditable path to alignment, and established Anthropic as a leading safety-focused frontier lab alongside OpenAI and Google.",
+    refs:["Bai et al., Constitutional AI (2022)"] },
+  { id:"llama", label:"LLaMA (Open LLMs)", year:2023, cat:"llm",
+    desc:"Meta's openly-released models sparked a Cambrian explosion of community fine-tunes.",
+    who:"Touvron et al. · Meta AI",
+    what:"LLaMA showed that comparatively small, efficiently-trained models could rival far larger ones, and Meta released the weights to researchers (LLaMA 2/3 openly for commercial use). A vast ecosystem of fine-tunes, quantization and local-inference tooling exploded around them.",
+    impact:"It democratized capable LLMs — anyone could run and adapt one — and seeded the open-weight movement that competes with closed frontier APIs and powers on-device AI.",
+    refs:["Touvron et al. (2023)"] },
+  { id:"gpt4", label:"GPT-4", year:2023, cat:"llm", key:true,
+    desc:"Multimodal, far more capable and reliable — passing professional exams and defining the modern assistant.",
+    who:"OpenAI",
+    what:"GPT-4 accepts images as well as text, reasons markedly better, and is far more reliable than GPT-3.5. It scored in the top ~10% on the bar exam and performed strongly across professional and academic benchmarks. Technical details (size, data) were not disclosed.",
+    impact:"It set the frontier bar for the assistant era and drove enterprise adoption (Copilot, countless products). It also intensified debates over closed models, safety and economic disruption.",
+    refs:["OpenAI, GPT-4 Technical Report (2023)"] },
+  { id:"multimodal", label:"Multimodal Models", year:2023, cat:"llm",
+    desc:"Single models that see, read, hear and speak — fusing vision, language and audio into one understanding.",
+    who:"OpenAI (GPT-4V), Google (Gemini), Anthropic (Claude) and others",
+    what:"Multimodal models encode images, audio and text into a shared representation so one network can caption a photo, read a chart, transcribe speech or reason across formats together. Gemini was designed multimodal from the ground up rather than bolted on.",
+    impact:"It moves AI closer to human-like, sensory-grounded understanding and unlocks uses from accessibility to robotics to 'point your phone and ask.' Multimodality is now standard in frontier models.",
+    refs:["GPT-4V (2023); Gemini (2023)"] },
+  { id:"moe", label:"Mixture of Experts", year:2023, cat:"llm",
+    desc:"Route each token to a few specialized sub-networks — huge parameter counts, low compute per token.",
+    who:"Shazeer et al. (2017); popularized by Mixtral, GPT-4-era models",
+    what:"An MoE layer holds many parallel 'expert' sub-networks but a learned router sends each token to only a couple of them. So a model can have hundreds of billions of parameters yet activate only a fraction for any given token, keeping inference cheap.",
+    impact:"MoE is a leading recipe for scaling frontier models efficiently (Mixtral, and reportedly GPT-4 and others). It decouples a model's knowledge capacity from its per-query cost.",
+    refs:["Shazeer et al. (2017); Mixtral (2023)"] },
+  { id:"agents", label:"AI Agents & Tool Use", year:2024, cat:"llm", key:true,
+    desc:"LLMs that plan, call tools, write code and act over many steps — from answering to autonomously doing.",
+    who:"OpenAI, Anthropic, Google & the broader ecosystem",
+    what:"Agentic systems wrap an LLM in a loop where it can plan, call external tools and APIs, run code, browse, read results and decide the next step — pursuing a goal over many turns rather than answering once. Standards like tool use and the Model Context Protocol connect models to real software.",
+    impact:"It marks the shift from AI that informs to AI that acts — coding agents, research agents, computer use. It's the current frontier, raising the stakes for reliability, oversight and safety.",
+    refs:["Tool use & MCP (2023–24)"] },
+];
+
+// ---------- Edges (source built → target) ----------
+const LINKS = [
+  ["turing-machine","turing-test"], ["turing-machine","dartmouth"], ["turing-test","dartmouth"],
+  ["info-theory","dartmouth"], ["info-theory","statistical-ml"],
+  ["dartmouth","logic-theorist"], ["dartmouth","perceptron"], ["dartmouth","eliza"],
+  ["logic-theorist","expert-systems"], ["eliza","expert-systems"], ["expert-systems","ai-winter"],
+  ["perceptron","minsky-perceptrons"], ["minsky-perceptrons","ai-winter"],
+  ["minsky-perceptrons","backprop"], ["perceptron","backprop"],
+  ["bayes-rule","statistical-ml"], ["ai-winter","statistical-ml"],
+  ["statistical-ml","svm"], ["statistical-ml","decision-trees"],
+  ["decision-trees","random-forests"], ["decision-trees","boosting"],
+  ["backprop","lenet"], ["backprop","lstm"], ["backprop","relu-dropout"],
+  ["lenet","alexnet"], ["relu-dropout","alexnet"], ["imagenet","alexnet"], ["gpu-cuda","alexnet"],
+  ["big-data","imagenet"], ["moores-law","gpu-cuda"], ["moores-law","big-data"],
+  ["alexnet","resnet"], ["batchnorm","resnet"], ["imagenet","resnet"], ["alexnet","batchnorm"],
+  ["alexnet","yolo"], ["alexnet","word2vec"], ["alexnet","dqn"], ["alexnet","gan"],
+  ["lstm","seq2seq"], ["word2vec","seq2seq"], ["seq2seq","attention"], ["lstm","attention"],
+  ["attention","transformer"], ["transformer","bert"], ["transformer","gpt"], ["word2vec","bert"],
+  ["gpt","gpt2"], ["gpt2","gpt3"], ["scaling-laws","gpt3"], ["gpt3","scaling-laws"],
+  ["gpt3","instructgpt"], ["rlhf","instructgpt"], ["instructgpt","chatgpt"], ["rlhf","chatgpt"],
+  ["chatgpt","gpt4"], ["transformer","gpt4"], ["multimodal","gpt4"], ["moe","gpt4"],
+  ["gpt4","agents"], ["llama","agents"], ["claude","agents"],
+  ["q-learning","dqn"], ["dqn","alphago"], ["resnet","alphago"],
+  ["alphago","alphazero"], ["alphazero","alphafold"], ["transformer","alphafold"],
+  ["gan","diffusion"], ["diffusion","stable-diffusion"], ["gan","stable-diffusion"], ["transformer","diffusion"],
+  ["transformer","llama"], ["gpt3","llama"], ["rlhf","claude"], ["instructgpt","claude"],
+  ["transformer","moe"], ["transformer","multimodal"], ["diffusion","multimodal"],
+];
+
+// ---------- Build graph ----------
+const nodeById = new Map(NODES.map(n => [n.id, n]));
+// resolve endpoints to node objects so links draw correctly even when no link force is active
+const links = LINKS.map(([s,t]) => ({ source: nodeById.get(s), target: nodeById.get(t) }));
+
+// degree → size
+const deg = new Map(NODES.map(n => [n.id, 0]));
+links.forEach(l => { deg.set(l.source.id, deg.get(l.source.id)+1); deg.set(l.target.id, deg.get(l.target.id)+1); });
+NODES.forEach(n => { n.r = (n.key ? 13 : 7) + Math.sqrt(deg.get(n.id)) * 2.6; });
+
+// alternate label above/below within each lane (by year) to reduce text collisions
+const byLane = {};
+NODES.forEach(n => (byLane[n.cat] = byLane[n.cat] || []).push(n));
+Object.values(byLane).forEach(arr => {
+  arr.sort((a,b)=>a.year-b.year).forEach((n,i) => { n.labelAbove = (i % 2 === 1); });
+});
+
+// neighbor maps (keyed by id)
+const incoming = new Map(NODES.map(n => [n.id, []]));
+const outgoing = new Map(NODES.map(n => [n.id, []]));
+links.forEach(l => { outgoing.get(l.source.id).push(l.target.id); incoming.get(l.target.id).push(l.source.id); });
+const neighbors = new Map(NODES.map(n => [n.id, new Set([n.id])]));
+links.forEach(l => { neighbors.get(l.source.id).add(l.target.id); neighbors.get(l.target.id).add(l.source.id); });
+
+// ---------- SVG setup ----------
+const svg = d3.select("#graph");
+let width = window.innerWidth, height = window.innerHeight;
+svg.attr("viewBox", [0,0,width,height]);
+
+const defs = svg.append("defs");
+defs.append("marker")
+  .attr("id","arrow").attr("viewBox","0 -5 10 10").attr("refX",9).attr("refY",0)
+  .attr("markerWidth",6).attr("markerHeight",6).attr("orient","auto")
+  .append("path").attr("class","arrowPath").attr("d","M0,-5L10,0L0,5");
+defs.append("marker")
+  .attr("id","arrow-hl").attr("viewBox","0 -5 10 10").attr("refX",9).attr("refY",0)
+  .attr("markerWidth",7).attr("markerHeight",7).attr("orient","auto")
+  .append("path").attr("class","arrowHlPath").attr("d","M0,-5L10,0L0,5");
+
+const g = svg.append("g");
+const linkSel = g.append("g").selectAll("path").data(links).join("path")
+  .attr("class","link").attr("marker-end","url(#arrow)");
+
+const nodeSel = g.append("g").selectAll("g").data(NODES).join("g")
+  .attr("class", d => "node" + (d.key ? " key" : ""))
+  .call(d3.drag().on("start",dragStart).on("drag",dragged).on("end",dragEnd));
+
+nodeSel.append("circle")
+  .attr("r", d => d.r)
+  .attr("fill", d => catColor(d.cat))
+  .style("filter", d => d.key ? "drop-shadow(0 0 6px " + catColor(d.cat) + ")" : "none")
+  .on("mouseover", (e,d) => highlight(d))
+  .on("mouseout", clearHighlight)
+  .on("click", (e,d) => { e.stopPropagation(); openPanel(d); });
+
+nodeSel.append("text")
+  .attr("dy", d => d.labelAbove ? -(d.r + 7) : (d.r + 13))
+  .text(d => d.label);
+
+// ---------- Layout constants (swimlane timeline) ----------
+const ORDER = ["foundations","symbolic","ml","neural","hardware","vision","nlp","rl","llm"];
+const laneIndex = new Map(ORDER.map((k,i)=>[k,i]));
+const M = { top: 110, left: 200, right: 110, bottom: 80 };
+const LANE_H = 108;
+const INNER_W = 3100;
+const yearExtent = [1940, 2025];
+const VW = M.left + INNER_W + M.right;
+const VH = M.top + ORDER.length*LANE_H + M.bottom;
+// Piecewise scale: early decades are sparse, recent ones dense — give recent years more room.
+const x0 = M.left, x1 = M.left+INNER_W;
+const xScale = d3.scaleLinear()
+  .domain([1940, 1990, 2010, 2017, 2025])
+  .range([x0, x0+0.18*INNER_W, x0+0.42*INNER_W, x0+0.68*INNER_W, x1]);
+const clampYear = y => Math.max(yearExtent[0], Math.min(yearExtent[1], y));
+const laneCenter = cat => M.top + laneIndex.get(cat)*LANE_H + LANE_H/2;
+
+// lane + year backdrop, drawn behind links/nodes
+const laneLayer = g.insert("g", ":first-child").attr("class","lanes").style("pointer-events","none");
+function drawTimelineDecor() {
+  laneLayer.selectAll("*").remove();
+  if (!timeline) return;
+  ORDER.forEach((cat,i) => {
+    const y = M.top + i*LANE_H;
+    laneLayer.append("rect")
+      .attr("x", M.left-60).attr("y", y).attr("width", INNER_W+120).attr("height", LANE_H)
+      .attr("fill", catColor(cat)).attr("opacity", i%2 ? THEME.laneAlt[0] : THEME.laneAlt[1]);
+    laneLayer.append("text")
+      .attr("x", M.left-70).attr("y", y+LANE_H/2).attr("text-anchor","end").attr("dominant-baseline","middle")
+      .attr("fill", catColor(cat)).attr("font-size","14px").attr("font-weight",700)
+      .text(CATS[cat].name);
+  });
+  const y0 = M.top, y1 = M.top + ORDER.length*LANE_H;
+  for (let yr=1940; yr<=2025; yr+=5) {
+    const x = xScale(yr), major = yr%10===0;
+    laneLayer.append("line").attr("x1",x).attr("x2",x).attr("y1",y0-14).attr("y2",y1)
+      .attr("stroke", major?THEME.gridMajor:THEME.grid)
+      .attr("stroke-dasharray", major?"none":"2,6");
+    if (major) {
+      laneLayer.append("text").attr("x",x).attr("y",y0-26).attr("text-anchor","middle")
+        .attr("fill",THEME.axisText).attr("font-size","14px").attr("font-weight",700).text(yr);
+      laneLayer.append("text").attr("x",x).attr("y",y1+30).attr("text-anchor","middle")
+        .attr("fill",THEME.axisText).attr("font-size","14px").attr("font-weight",700).text(yr);
+    }
+  }
+}
+
+// seed initial positions at their timeline slot so the static settle converges fast
+NODES.forEach(n => { n.x = xScale(clampYear(n.year)); n.y = laneCenter(n.cat) + (n.labelAbove ? -8 : 8); });
+
+// ---------- Force simulation ----------
+const sim = d3.forceSimulation(NODES).on("tick", ticked).stop();
+function setTimelineForces() {
+  sim.force("link", null).force("charge", null)
+     .force("x", d3.forceX(d => xScale(clampYear(d.year))).strength(1))
+     .force("y", d3.forceY(d => laneCenter(d.cat)).strength(0.42))
+     .force("collide", d3.forceCollide(d => d.r+9).strength(1).iterations(3));
+}
+function setNetworkForces() {
+  sim.force("x", d3.forceX(width/2).strength(0.05))
+     .force("y", d3.forceY(height/2).strength(0.07))
+     .force("charge", d3.forceManyBody().strength(-430))
+     .force("collide", d3.forceCollide(d => d.r+10))
+     .force("link", d3.forceLink(links).id(d=>d.id).distance(95).strength(0.45));
+}
+function settle(steps) { sim.alpha(1); for (let i=0;i<steps;i++) sim.tick(); sim.alpha(0); ticked(); }
+
+function ticked() {
+  const cf = timeline ? 0.05 : 0.12; // edge curvature
+  linkSel.attr("d", d => {
+    const s = d.source, t = d.target;
+    const dx = t.x - s.x, dy = t.y - s.y, dist = Math.hypot(dx,dy) || 1;
+    const ux = dx/dist, uy = dy/dist;
+    const x1 = s.x + ux*(s.r+2), y1 = s.y + uy*(s.r+2);
+    const x2 = t.x - ux*(t.r+7), y2 = t.y - uy*(t.r+7);
+    const cx = (x1+x2)/2 - uy*dist*cf, cy = (y1+y2)/2 + ux*dist*cf;
+    return `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`;
+  });
+  nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+}
+
+// ---------- Zoom ----------
+const zoom = d3.zoom().scaleExtent([0.12, 5]).on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom);
+svg.on("click", () => { closePanel(); clearHighlight(); });
+
+// ---------- Labels & highlight ----------
+const baseOpacity = n => (timeline || n.key) ? 1 : 0;
+function updateLabels() { nodeSel.selectAll("text").style("opacity", baseOpacity); }
+
+let pinned = null;
+function highlight(d) {
+  const nb = neighbors.get(d.id);
+  nodeSel.classed("dim", n => !nb.has(n.id));
+  nodeSel.selectAll("text").style("opacity", n => nb.has(n.id) ? 1 : (timeline ? 0.06 : (n.key ? 0.15 : 0)));
+  linkSel.classed("hl", l => l.source.id===d.id || l.target.id===d.id)
+         .classed("dim", l => !(l.source.id===d.id || l.target.id===d.id))
+         .attr("marker-end", l => (l.source.id===d.id||l.target.id===d.id) ? "url(#arrow-hl)" : "url(#arrow)");
+}
+function clearHighlight() {
+  if (pinned) return;
+  nodeSel.classed("dim", false);
+  updateLabels();
+  linkSel.classed("hl", false).classed("dim", false).attr("marker-end","url(#arrow)");
+}
+
+// ---------- Detail panel ----------
+const panel = document.getElementById("panel");
+function openPanel(d) {
+  pinned = d; highlight(d);
+  const c = CATS[d.cat], col = catColor(d.cat);
+  document.getElementById("pBadge").textContent = c.name;
+  document.getElementById("pBadge").style.background = col + "22";
+  document.getElementById("pBadge").style.color = col;
+  document.getElementById("pBadge").style.border = "1px solid " + col + "55";
+  document.getElementById("pTitle").textContent = d.label;
+  document.getElementById("pYear").textContent = (d.year < 0 ? Math.abs(d.year)+" BCE" : d.year);
+  setField("pWho", d.who, "👤 ");
+  document.getElementById("pDesc").textContent = d.desc;
+  setSection("pWhatLbl", "pWhat", d.what);
+  setSection("pImpactLbl", "pImpact", d.impact);
+  fillChips("pIn", incoming.get(d.id));
+  fillChips("pOut", outgoing.get(d.id));
+  const refs = document.getElementById("pRefs");
+  refs.innerHTML = (d.refs && d.refs.length) ? ("Sources: " + d.refs.join(" · ")) : "";
+  refs.style.display = (d.refs && d.refs.length) ? "block" : "none";
+  panel.scrollTop = 0;
+  panel.classList.add("open");
+}
+function setField(id, val, prefix) {
+  const el = document.getElementById(id);
+  if (val) { el.textContent = (prefix||"") + val; el.style.display = "block"; }
+  else el.style.display = "none";
+}
+function setSection(lblId, valId, val) {
+  const lbl = document.getElementById(lblId), el = document.getElementById(valId);
+  if (val) { el.textContent = val; el.style.display = "block"; lbl.style.display = "block"; }
+  else { el.style.display = "none"; lbl.style.display = "none"; }
+}
+function fillChips(elId, ids) {
+  const el = document.getElementById(elId); el.innerHTML = "";
+  if (!ids.length) { el.innerHTML = '<span class="chip none">— nothing earlier in this map —</span>'; return; }
+  ids.slice().sort((a,b)=> nodeById.get(a).year - nodeById.get(b).year).forEach(id => {
+    const n = nodeById.get(id);
+    const chip = document.createElement("span");
+    chip.className = "chip"; chip.textContent = n.label + "  ·  " + n.year;
+    chip.style.borderColor = catColor(n.cat) + "55";
+    chip.onclick = (e) => { e.stopPropagation(); openPanel(n); focusNode(n); };
+    el.appendChild(chip);
+  });
+}
+function closePanel() { pinned = null; panel.classList.remove("open"); clearHighlight(); }
+document.getElementById("panelClose").onclick = (e) => { e.stopPropagation(); closePanel(); };
+
+function focusNode(n, scale) {
+  scale = scale || Math.max(0.9, d3.zoomTransform(svg.node()).k);
+  const t = d3.zoomIdentity.translate(width/2 - n.x*scale, height/2 - n.y*scale).scale(scale);
+  svg.transition().duration(600).call(zoom.transform, t);
+}
+
+// ---------- Legend ----------
+const legend = d3.select("#legend");
+const catState = {}; Object.keys(CATS).forEach(k => catState[k]=true);
+Object.entries(CATS).forEach(([key,c]) => {
+  const item = legend.append("div").attr("class","legend-item").attr("data-cat",key)
+    .on("click", () => toggleCat(key, item));
+  item.append("span").attr("class","swatch").attr("data-cat",key).style("background", catColor(key));
+  item.append("span").text(c.name);
+});
+function toggleCat(key, item) {
+  catState[key] = !catState[key];
+  item.classed("off", !catState[key]);
+  nodeSel.style("display", d => catState[d.cat] ? null : "none");
+  linkSel.style("display", l => (catState[l.source.cat] && catState[l.target.cat]) ? null : "none");
+}
+
+// ---------- Search ----------
+document.getElementById("search").addEventListener("input", function() {
+  const q = this.value.trim().toLowerCase();
+  if (!q) { updateLabels(); nodeSel.classed("dim", false); return; }
+  nodeSel.classed("dim", d => !d.label.toLowerCase().includes(q));
+  nodeSel.selectAll("text").style("opacity", d => d.label.toLowerCase().includes(q) ? 1 : 0);
+  const match = NODES.find(n => n.label.toLowerCase().includes(q));
+  if (match) focusNode(match, 1.3);
+});
+
+// ---------- Layout toggle ----------
+let timeline = true; // timeline is the default, decluttered view
+document.getElementById("toggleLayout").addEventListener("click", function() {
+  timeline = !timeline;
+  this.textContent = timeline ? "Network view" : "Timeline view";
+  laneLayer.style("display", timeline ? null : "none");
+  if (timeline) {
+    setTimelineForces(); drawTimelineDecor(); settle(400); updateLabels(); fitTimeline(650);
+  } else {
+    setNetworkForces(); drawTimelineDecor(); updateLabels();
+    sim.alpha(0.9).restart();
+    setTimeout(() => fitNetwork(800), 1400);
+  }
+});
+
+// ---------- Drag ----------
+function dragStart(e,d){ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; }
+function dragged(e,d){ d.fx=e.x; d.fy=e.y; }
+function dragEnd(e,d){ if(!e.active) sim.alphaTarget(0); if(timeline){ d.fx=null; d.fy=null; } }
+
+// ---------- Reset ----------
+document.getElementById("reset").addEventListener("click", () => {
+  closePanel();
+  document.getElementById("search").value = "";
+  nodeSel.classed("dim", false);
+  updateLabels();
+  if (timeline) fitTimeline(500); else fitNetwork(500);
+});
+
+// ---------- Fit helpers ----------
+function fitTimeline(dur) {
+  const scale = Math.min(1.0, (height*0.94)/VH);
+  const tx = 24;                                  // anchored to the left → earliest years first
+  const ty = (height - scale*VH)/2;
+  svg.transition().duration(dur||0).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+}
+function fitNetwork(dur) {
+  const xs=NODES.map(n=>n.x), ys=NODES.map(n=>n.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const gw=(maxX-minX)||1, gh=(maxY-minY)||1;
+  const scale=Math.min(1.3, 0.86*Math.min(width/gw,height/gh));
+  const tx=width/2-scale*(minX+maxX)/2, ty=height/2-scale*(minY+maxY)/2;
+  svg.transition().duration(dur||0).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+}
+
+// ---------- Resize ----------
+window.addEventListener("resize", () => {
+  width = window.innerWidth; height = window.innerHeight;
+  svg.attr("viewBox", [0,0,width,height]);
+  if (timeline) { setTimelineForces(); settle(120); fitTimeline(0); }
+  else { setNetworkForces(); sim.alpha(0.3).restart(); }
+});
+
+// ---------- Theme application ----------
+function applyTheme(key) {
+  THEME = THEMES[key] || THEMES.muted;
+  const root = document.documentElement;
+  Object.entries(THEME.vars).forEach(([k,v]) => root.style.setProperty(k, v));
+  // node fills + key-node glow
+  nodeSel.select("circle")
+    .attr("fill", d => catColor(d.cat))
+    .style("filter", d => d.key ? "drop-shadow(0 0 6px " + catColor(d.cat) + ")" : "none");
+  // legend swatches
+  d3.selectAll("#legend .swatch").style("background", function(){ return catColor(this.getAttribute("data-cat")); });
+  // arrow markers
+  d3.select(".arrowPath").attr("fill", THEME.arrow);
+  d3.select(".arrowHlPath").attr("fill", THEME.arrowHl);
+  // lane/grid backdrop
+  drawTimelineDecor();
+  // active button
+  document.querySelectorAll("#themebar .tbtn").forEach(b => b.classList.toggle("active", b.dataset.theme === key));
+}
+document.querySelectorAll("#themebar .tbtn").forEach(btn => {
+  btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
+});
+
+// fade hint
+setTimeout(() => { const h=document.getElementById("hint"); if(h) h.style.opacity="0"; }, 8000);
+
+// ---------- Initial render (static timeline) ----------
+setTimelineForces();
+drawTimelineDecor();
+settle(450);
+updateLabels();
+applyTheme("muted");
+fitTimeline(0);
+</script>
+</body>
+</html>
