@@ -217,9 +217,178 @@
       padding: 6px 12px;
     }
   }
+
+  /* ============================================================
+     MOBILE APP  — a separate, native-feeling experience.
+     Hidden by default; shown (and the graph hidden) on phones.
+     ============================================================ */
+  #mobileApp { display: none; }
+  body.is-mobile { overflow: hidden; }
+  body.is-mobile #app { display: none !important; }
+  body.is-mobile #mobileApp {
+    display: flex; flex-direction: column;
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--bg);
+  }
+
+  /* Top bar */
+  .mTop {
+    flex: 0 0 auto; position: relative; z-index: 5;
+    padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+    background: linear-gradient(180deg, var(--bg) 72%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .mTop .row { display: flex; align-items: center; gap: 12px; }
+  .mTop h1 {
+    margin: 0; font-size: 19px; font-weight: 800; letter-spacing: .2px; flex: 1;
+    background: var(--titleGrad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .mTop .sub { margin: 3px 0 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
+  .mIcon {
+    width: 38px; height: 38px; flex: 0 0 auto; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--inputBg); border: 1px solid var(--border); color: var(--text);
+    font-size: 17px; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  .mIcon:active { background: var(--accentBg); transform: scale(.94); }
+  .mSearch {
+    margin-top: 12px; width: 100%; font-size: 16px; padding: 11px 14px;
+    background: var(--inputBg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 12px; outline: none;
+  }
+  .mSearch::placeholder { color: var(--muted); }
+
+  /* Field filter chips (horizontal scroll) */
+  .mFilters {
+    display: flex; gap: 7px; margin-top: 12px; overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .mFilters::-webkit-scrollbar { display: none; }
+  .mFilter {
+    flex: 0 0 auto; font-size: 12.5px; padding: 7px 13px; border-radius: 20px;
+    background: var(--inputBg); border: 1px solid var(--border); color: var(--text);
+    white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    display: flex; align-items: center; gap: 6px; transition: opacity .15s, background .15s;
+  }
+  .mFilter .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .mFilter.off { opacity: .4; }
+
+  /* Scrolling feed */
+  .mFeed {
+    flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 4px 16px calc(28px + env(safe-area-inset-bottom));
+  }
+  .mEra {
+    position: sticky; top: 0; z-index: 2;
+    margin: 14px -16px 10px; padding: 10px 16px 8px;
+    background: linear-gradient(180deg, var(--bg) 75%, transparent);
+    backdrop-filter: blur(4px);
+  }
+  .mEra:first-child { margin-top: 4px; }
+  .mEra .eName { font-size: 16px; font-weight: 800; color: var(--text); }
+  .mEra .eMeta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .mEra .eYears { float: right; font-size: 12px; font-weight: 700; color: var(--muted); }
+
+  /* Timeline rail + cards */
+  .mItem { position: relative; padding-left: 28px; }
+  .mItem::before {            /* the vertical rail */
+    content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px;
+    background: var(--border);
+  }
+  .mItem:last-child::before { bottom: auto; height: 26px; }
+  .mDotRail {
+    position: absolute; left: 3px; top: 22px; width: 14px; height: 14px; border-radius: 50%;
+    border: 3px solid var(--bg); z-index: 1;
+  }
+  .mCard {
+    margin: 0 0 12px; padding: 13px 14px; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: transform .08s, background .15s; position: relative; overflow: hidden;
+  }
+  .mCard:active { transform: scale(.985); background: var(--hoverBg); }
+  .mCard::before {            /* field color accent stripe */
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--cardc, var(--accent));
+  }
+  .mCard .ttl { font-size: 15.5px; font-weight: 700; color: var(--text); line-height: 1.25; }
+  .mCard .ttl .star { color: var(--accent); margin-left: 4px; font-size: 13px; }
+  .mCard .meta { display: flex; gap: 8px; align-items: center; margin: 5px 0 7px; flex-wrap: wrap; }
+  .mCard .yr { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .mCard .fld { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+  .mCard .blurb { font-size: 13px; line-height: 1.5; color: var(--text); opacity: .8; }
+  .mEmpty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
+
+  /* Full-screen detail view (slides in from right) */
+  .mDetail {
+    position: fixed; inset: 0; z-index: 60; background: var(--bg);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1);
+    visibility: hidden;
+  }
+  .mDetail.open { transform: translateX(0); visibility: visible; }
+  .mdTop {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: max(10px, env(safe-area-inset-top)) 14px 11px;
+    border-bottom: 1px solid var(--border); background: var(--bg);
+  }
+  .mdBack {
+    width: 40px; height: 40px; flex: 0 0 auto; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--inputBg); border: 1px solid var(--border); color: var(--text);
+    font-size: 20px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .mdBack:active { background: var(--accentBg); transform: scale(.94); }
+  .mdTop .fld { font-size: 12px; padding: 4px 11px; border-radius: 20px; font-weight: 600; }
+  .mdBody {
+    flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    padding: 18px 18px calc(40px + env(safe-area-inset-bottom));
+  }
+  .mdBody h2 { margin: 4px 0 6px; font-size: 25px; line-height: 1.2; color: var(--text); font-weight: 800; }
+  .mdYear { font-size: 14px; color: var(--accent); font-weight: 700; margin-bottom: 10px; }
+  .mdWho { font-size: 13px; color: var(--muted); line-height: 1.5; padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .mdLead { font-size: 16px; line-height: 1.55; color: var(--text); font-weight: 500; margin-top: 14px; }
+  .mdLabel { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 800; margin: 22px 0 8px; }
+  .mdText { font-size: 14.5px; line-height: 1.62; color: var(--text); opacity: .88; }
+  .mdChips { display: flex; flex-direction: column; gap: 8px; }
+  .mdChip {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; -webkit-tap-highlight-color: transparent; font-size: 14px;
+  }
+  .mdChip:active { background: var(--hoverBg); transform: scale(.99); }
+  .mdChip .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+  .mdChip .cyr { margin-left: auto; font-size: 12.5px; color: var(--muted); font-weight: 700; }
+  .mdChip .arw { color: var(--muted); font-size: 16px; }
+  .mdChip.none { opacity: .5; border-style: dashed; cursor: default; }
+  .mdRefs { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--border); font-style: italic; }
 </style>
 </head>
 <body>
+
+<!-- ============ MOBILE APP (built separately; shown only on phones) ============ -->
+<div id="mobileApp">
+  <div class="mTop">
+    <div class="row">
+      <h1>The Web of AI</h1>
+      <div class="mIcon" id="mThemeBtn" title="Theme">◐</div>
+    </div>
+    <p class="sub">The story of AI, one breakthrough at a time. Scroll the timeline; tap any moment for the full story.</p>
+    <input class="mSearch" id="mSearch" type="search" placeholder="Search 54 breakthroughs…" autocomplete="off" />
+    <div class="mFilters" id="mFilters"></div>
+  </div>
+  <div class="mFeed" id="mFeed"></div>
+</div>
+
+<!-- Full-screen detail view -->
+<div class="mDetail" id="mDetail">
+  <div class="mdTop">
+    <div class="mdBack" id="mdBack">‹</div>
+    <span class="fld" id="mdField"></span>
+  </div>
+  <div class="mdBody" id="mdBody"></div>
+</div>
+
 <div id="app">
   <header>
     <div class="title">
@@ -1156,30 +1325,196 @@ document.querySelectorAll("#themebar .tbtn").forEach(btn => {
   btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
 });
 
-// device-aware hint + subtitle
-(() => {
-  const h = document.getElementById("hint");
-  if (isMobile()) {
-    if (h) h.textContent = "Scroll down through time · tap a node for its story · ☰ filters fields";
-    const sub = document.querySelector("header .title p");
-    if (sub) sub.textContent = "A timeline of every pivotal moment — scroll down through the decades; tap any node for the full story.";
+// ============================================================
+//  DESKTOP graph init — only runs on non-mobile.
+// ============================================================
+const MOBILE = isMobile();
+if (!MOBILE) {
+  setTimeout(() => { const h=document.getElementById("hint"); if(h) h.style.opacity="0"; }, 8000);
+  vertical = false;
+  seedPositions();
+  setTimelineForces();
+  drawTimelineDecor();
+  settle(450);
+  updateLabels();
+  layoutLabels();
+  applyTheme("muted");
+  fitTimeline(0);
+}
+
+// ============================================================
+//  MOBILE APP — built from scratch: a scrolling timeline feed
+//  of cards + full-screen detail screens with back-button nav.
+// ============================================================
+(function mobileApp() {
+  if (!MOBILE) return;
+  document.body.classList.add("is-mobile");
+
+  // ---- theme handling (independent of the d3 graph) ----
+  const order = ["muted","paper","vivid"];
+  let themeIdx = 0;
+  function setTheme(key) {
+    const t = THEMES[key] || THEMES.muted;
+    THEME = t;
+    const root = document.documentElement;
+    Object.entries(t.vars).forEach(([k,v]) => root.style.setProperty(k, v));
+    renderFilters(); renderFeed();           // repaint swatches/cards with new colors
   }
-  setTimeout(() => { if (h) h.style.opacity = "0"; }, 8000);
+  document.getElementById("mThemeBtn").addEventListener("click", () => {
+    themeIdx = (themeIdx + 1) % order.length;
+    setTheme(order[themeIdx]);
+  });
+
+  // ---- eras (for sticky section headers) ----
+  const ERAS = [
+    { name:"Foundations",        meta:"The idea that machines could think", lo:-9999, hi:1955 },
+    { name:"The Symbolic Era",   meta:"Hand-coded logic & the first AI",    lo:1956, hi:1985 },
+    { name:"Statistical Learning", meta:"Learning from data, not rules",    lo:1986, hi:2011 },
+    { name:"The Deep Learning Revolution", meta:"Neural nets scale up",      lo:2012, hi:2016 },
+    { name:"The LLM Era",        meta:"Transformers, scale & assistants",   lo:2017, hi:9999 },
+  ];
+  const eraOf = y => ERAS.find(e => y >= e.lo && y <= e.hi) || ERAS[ERAS.length-1];
+
+  const sorted = NODES.slice().sort((a,b) => a.year - b.year || a.label.localeCompare(b.label));
+
+  // ---- state ----
+  const activeCats = new Set(Object.keys(CATS));
+  let query = "";
+
+  // ---- field filters ----
+  const filtersEl = document.getElementById("mFilters");
+  function renderFilters() {
+    filtersEl.innerHTML = "";
+    const all = document.createElement("div");
+    all.className = "mFilter" + (activeCats.size === Object.keys(CATS).length ? "" : " off");
+    all.innerHTML = '<span>All fields</span>';
+    all.onclick = () => {
+      if (activeCats.size === Object.keys(CATS).length) { activeCats.clear(); }
+      else { Object.keys(CATS).forEach(k => activeCats.add(k)); }
+      renderFilters(); renderFeed();
+    };
+    filtersEl.appendChild(all);
+    Object.entries(CATS).forEach(([key,c]) => {
+      const el = document.createElement("div");
+      el.className = "mFilter" + (activeCats.has(key) ? "" : " off");
+      el.innerHTML = '<span class="dot" style="background:'+catColor(key)+'"></span><span>'+c.name+'</span>';
+      el.onclick = () => {
+        if (activeCats.has(key)) activeCats.delete(key); else activeCats.add(key);
+        if (activeCats.size === 0) Object.keys(CATS).forEach(k => activeCats.add(k)); // never empty
+        renderFilters(); renderFeed();
+      };
+      filtersEl.appendChild(el);
+    });
+  }
+
+  // ---- the feed ----
+  const feedEl = document.getElementById("mFeed");
+  function matches(n) {
+    if (!activeCats.has(n.cat)) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      if (!(n.label.toLowerCase().includes(q) ||
+            (n.desc||"").toLowerCase().includes(q) ||
+            (n.who||"").toLowerCase().includes(q))) return false;
+    }
+    return true;
+  }
+  function renderFeed() {
+    const list = sorted.filter(matches);
+    feedEl.innerHTML = "";
+    if (!list.length) { feedEl.innerHTML = '<div class="mEmpty">No breakthroughs match.<br>Try a different search or filter.</div>'; return; }
+    let lastEra = null;
+    list.forEach(n => {
+      const era = eraOf(n.year);
+      if (era !== lastEra) {
+        lastEra = era;
+        const h = document.createElement("div");
+        h.className = "mEra";
+        const within = list.filter(x => eraOf(x.year) === era);
+        const ylo = Math.min(...within.map(x=>x.year)), yhi = Math.max(...within.map(x=>x.year));
+        h.innerHTML = '<span class="eYears">'+ylo+(ylo!==yhi?("–"+yhi):"")+'</span>'
+                    + '<div class="eName">'+era.name+'</div><div class="eMeta">'+era.meta+'</div>';
+        feedEl.appendChild(h);
+      }
+      feedEl.appendChild(card(n));
+    });
+  }
+  function card(n) {
+    const col = catColor(n.cat);
+    const item = document.createElement("div");
+    item.className = "mItem";
+    item.innerHTML =
+      '<span class="mDotRail" style="background:'+col+'"></span>' +
+      '<div class="mCard" style="--cardc:'+col+'">' +
+        '<div class="ttl">'+esc(n.label)+(n.key?'<span class="star">★</span>':'')+'</div>' +
+        '<div class="meta"><span class="yr">'+fmtYear(n.year)+'</span>' +
+          '<span class="fld" style="background:'+col+'22;color:'+col+'">'+CATS[n.cat].name+'</span></div>' +
+        '<div class="blurb">'+esc(n.desc||"")+'</div>' +
+      '</div>';
+    item.querySelector(".mCard").onclick = () => openDetail(n);
+    return item;
+  }
+
+  // ---- detail view + history (back button) ----
+  const detail = document.getElementById("mDetail");
+  const mdBody = document.getElementById("mdBody");
+  const mdField = document.getElementById("mdField");
+  let detailOpen = false;
+
+  function openDetail(n, fromHistory) {
+    const col = catColor(n.cat);
+    mdField.textContent = CATS[n.cat].name;
+    mdField.style.background = col + "22"; mdField.style.color = col;
+    const inIds  = (incoming.get(n.id)||[]).slice().sort((a,b)=>nodeById.get(a).year-nodeById.get(b).year);
+    const outIds = (outgoing.get(n.id)||[]).slice().sort((a,b)=>nodeById.get(a).year-nodeById.get(b).year);
+    mdBody.innerHTML =
+      '<div class="mdYear">'+fmtYear(n.year)+'</div>' +
+      '<h2>'+esc(n.label)+'</h2>' +
+      (n.who ? '<div class="mdWho">👤 '+esc(n.who)+'</div>' : '') +
+      '<div class="mdLead">'+esc(n.desc||"")+'</div>' +
+      (n.what ? '<div class="mdLabel">What happened</div><div class="mdText">'+esc(n.what)+'</div>' : '') +
+      (n.impact ? '<div class="mdLabel">Why it mattered</div><div class="mdText">'+esc(n.impact)+'</div>' : '') +
+      '<div class="mdLabel">Built on</div>' + chipList(inIds) +
+      '<div class="mdLabel">Made possible</div>' + chipList(outIds) +
+      (n.refs && n.refs.length ? '<div class="mdRefs">Sources: '+esc(n.refs.join(" · "))+'</div>' : '');
+    mdBody.querySelectorAll("[data-goto]").forEach(el => {
+      el.onclick = () => openDetail(nodeById.get(el.getAttribute("data-goto")));
+    });
+    mdBody.scrollTop = 0;
+    if (!detailOpen) { detail.classList.add("open"); detailOpen = true; }
+    if (!fromHistory) history.pushState({ detail:true, id:n.id }, "");
+  }
+  function chipList(ids) {
+    if (!ids.length) return '<div class="mdChip none">— nothing earlier in this map —</div>';
+    return '<div class="mdChips">' + ids.map(id => {
+      const m = nodeById.get(id), col = catColor(m.cat);
+      return '<div class="mdChip" data-goto="'+id+'">' +
+        '<span class="dot" style="background:'+col+'"></span>' +
+        '<span>'+esc(m.label)+'</span>' +
+        '<span class="cyr">'+m.year+'</span><span class="arw">›</span></div>';
+    }).join("") + '</div>';
+  }
+  function closeDetail(fromHistory) {
+    if (!detailOpen) return;
+    detail.classList.remove("open"); detailOpen = false;
+    if (!fromHistory && history.state && history.state.detail) history.back();
+  }
+  document.getElementById("mdBack").onclick = () => closeDetail();
+  // hardware/browser back button closes the detail view instead of leaving the page
+  window.addEventListener("popstate", () => { if (detailOpen) closeDetail(true); });
+
+  // ---- search ----
+  const searchEl = document.getElementById("mSearch");
+  searchEl.addEventListener("input", () => { query = searchEl.value.trim(); renderFeed(); });
+
+  // ---- helpers ----
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function fmtYear(y){ return y < 0 ? Math.abs(y)+" BCE" : String(y); }
+
+  // ---- boot ----
+  renderFilters();
+  renderFeed();
 })();
-
-// keep layout button label sensible on touch
-if (isMobile()) document.getElementById("toggleLayout").textContent = "Network";
-
-// ---------- Initial render (static timeline) ----------
-vertical = isMobile();                 // phones get the vertical, scroll-down timeline
-seedPositions();
-setTimelineForces();
-drawTimelineDecor();
-settle(450);
-updateLabels();
-layoutLabels();
-applyTheme("muted");
-fitTimeline(0);
 </script>
 </body>
 </html>
