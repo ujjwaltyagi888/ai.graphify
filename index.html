@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>The Web of AI — How Every Breakthrough Connects</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
@@ -41,8 +41,9 @@
     transition: background .4s ease, color .4s ease;
   }
   #app { position: fixed; inset: 0; }
-  svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent; }
   svg:active { cursor: grabbing; }
+  .node circle { -webkit-tap-highlight-color: transparent; }
 
   /* Header */
   header {
@@ -140,6 +141,82 @@
   }
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 4px; }
+
+  /* Legend toggle button (mobile only) */
+  #legendToggle { display: none; }
+  .panel-grip { display: none; }
+
+  /* ======================= MOBILE ======================= */
+  @media (max-width: 720px), (pointer: coarse) and (max-width: 920px) {
+    header {
+      flex-wrap: wrap; gap: 10px; padding: 10px 12px;
+      padding-top: max(10px, env(safe-area-inset-top));
+    }
+    header .title { flex: 1 1 100%; }
+    header h1 { font-size: 16px; }
+    header p { font-size: 11px; line-height: 1.35; max-width: 100%; }
+
+    .controls {
+      margin-left: 0; flex: 1 1 100%; width: 100%; gap: 6px;
+      flex-wrap: wrap; align-items: stretch;
+    }
+    .controls input[type="search"] {
+      order: -1; flex: 1 1 100%; width: 100%; font-size: 16px; /* 16px stops iOS zoom-on-focus */
+      padding: 10px 12px;
+    }
+    #themebar { flex: 1 1 auto; justify-content: center; }
+    #themebar .tbtn { flex: 1 1 0; text-align: center; padding: 8px 6px; font-size: 12px; }
+    .btn { flex: 1 1 0; text-align: center; padding: 9px 8px; font-size: 12.5px; }
+
+    /* Detail panel → bottom sheet */
+    #panel {
+      top: auto; bottom: 0; left: 0; right: 0; width: 100%;
+      max-height: 72vh;
+      border-radius: 18px 18px 0 0;
+      border-left: none; border-right: none; border-bottom: none;
+      padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
+      transform: translateY(105%);
+      transition: transform .3s cubic-bezier(.2,.8,.2,1);
+      box-shadow: 0 -12px 40px var(--shadow);
+      -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    }
+    #panel.open { transform: translateY(0); }
+    #panel .close { top: 14px; right: 16px; font-size: 24px; padding: 4px; }
+    .panel-grip {
+      display: block; width: 40px; height: 4px; border-radius: 3px;
+      background: var(--muted); opacity: .5; margin: 4px auto 12px;
+    }
+    #panel h2 { font-size: 19px; padding-right: 30px; }
+
+    /* Legend → collapsible, opened by a button */
+    #legendToggle {
+      display: flex; align-items: center; justify-content: center;
+      position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 21; width: 44px; height: 44px; border-radius: 50%;
+      background: var(--panel); border: 1px solid var(--border); color: var(--text);
+      font-size: 18px; cursor: pointer; backdrop-filter: blur(10px);
+      box-shadow: 0 6px 20px var(--shadow);
+    }
+    #legend {
+      left: 12px; right: 12px; bottom: calc(64px + env(safe-area-inset-bottom));
+      max-width: none; max-height: 50vh; overflow-y: auto;
+      transform: translateY(12px); opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s;
+    }
+    #legend.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+    #legend .legend-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px;
+    }
+    .legend-item { font-size: 13px; padding: 6px 4px; }
+    .swatch { width: 14px; height: 14px; }
+
+    /* Hint smaller & out of the way */
+    .hint {
+      bottom: calc(12px + env(safe-area-inset-bottom)); left: 50%;
+      font-size: 11px; max-width: 70%; text-align: center; line-height: 1.4;
+      padding: 6px 12px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -163,9 +240,11 @@
 
   <svg id="graph"></svg>
 
-  <div id="legend"><h3>Fields of AI &nbsp;·&nbsp; click to filter</h3></div>
+  <button id="legendToggle" aria-label="Toggle legend">☰</button>
+  <div id="legend"><h3>Fields of AI &nbsp;·&nbsp; tap to filter</h3><div class="legend-grid"></div></div>
 
   <div id="panel">
+    <div class="panel-grip"></div>
     <span class="close" id="panelClose">✕</span>
     <span class="badge" id="pBadge"></span>
     <h2 id="pTitle"></h2>
@@ -668,6 +747,7 @@ links.forEach(l => { neighbors.get(l.source.id).add(l.target.id); neighbors.get(
 // ---------- SVG setup ----------
 const svg = d3.select("#graph");
 let width = window.innerWidth, height = window.innerHeight;
+const isMobile = () => window.innerWidth <= 720 || (window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 920);
 svg.attr("viewBox", [0,0,width,height]);
 
 const defs = svg.append("defs");
@@ -828,6 +908,12 @@ function openPanel(d) {
   refs.style.display = (d.refs && d.refs.length) ? "block" : "none";
   panel.scrollTop = 0;
   panel.classList.add("open");
+  // On phones, slide the tapped node up into the visible strip above the sheet,
+  // and hide the legend popover if it was open.
+  if (isMobile()) {
+    document.getElementById("legend").classList.remove("show");
+    focusNode(d);
+  }
 }
 function setField(id, val, prefix) {
   const el = document.getElementById(id);
@@ -855,19 +941,32 @@ function closePanel() { pinned = null; panel.classList.remove("open"); clearHigh
 document.getElementById("panelClose").onclick = (e) => { e.stopPropagation(); closePanel(); };
 
 function focusNode(n, scale) {
+  if (isMobile()) {
+    // Keep the node in the visible strip above the bottom-sheet panel.
+    const k = scale || Math.max(0.85, d3.zoomTransform(svg.node()).k);
+    const focusY = height * 0.28;                 // upper third, clear of the sheet
+    const t = d3.zoomIdentity.translate(width/2 - n.x*k, focusY - n.y*k).scale(k);
+    svg.transition().duration(550).call(zoom.transform, t);
+    return;
+  }
   scale = scale || Math.max(0.9, d3.zoomTransform(svg.node()).k);
   const t = d3.zoomIdentity.translate(width/2 - n.x*scale, height/2 - n.y*scale).scale(scale);
   svg.transition().duration(600).call(zoom.transform, t);
 }
 
 // ---------- Legend ----------
-const legend = d3.select("#legend");
+const legendGrid = d3.select("#legend .legend-grid");
 const catState = {}; Object.keys(CATS).forEach(k => catState[k]=true);
 Object.entries(CATS).forEach(([key,c]) => {
-  const item = legend.append("div").attr("class","legend-item").attr("data-cat",key)
+  const item = legendGrid.append("div").attr("class","legend-item").attr("data-cat",key)
     .on("click", () => toggleCat(key, item));
   item.append("span").attr("class","swatch").attr("data-cat",key).style("background", catColor(key));
   item.append("span").text(c.name);
+});
+// Mobile: toggle legend visibility with the FAB
+document.getElementById("legendToggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("legend").classList.toggle("show");
 });
 function toggleCat(key, item) {
   catState[key] = !catState[key];
@@ -890,7 +989,7 @@ document.getElementById("search").addEventListener("input", function() {
 let timeline = true; // timeline is the default, decluttered view
 document.getElementById("toggleLayout").addEventListener("click", function() {
   timeline = !timeline;
-  this.textContent = timeline ? "Network view" : "Timeline view";
+  this.textContent = isMobile() ? (timeline ? "Network" : "Timeline") : (timeline ? "Network view" : "Timeline view");
   laneLayer.style("display", timeline ? null : "none");
   if (timeline) {
     setTimelineForces(); drawTimelineDecor(); settle(400); updateLabels(); fitTimeline(650);
@@ -917,6 +1016,17 @@ document.getElementById("reset").addEventListener("click", () => {
 
 // ---------- Fit helpers ----------
 function fitTimeline(dur) {
+  if (isMobile()) {
+    // On phones, fitting all 9 lanes to height makes nodes microscopic.
+    // Instead scale so the lane stack is comfortably readable and let the user
+    // pan/scroll vertically & horizontally through the timeline.
+    const topGap = 150;                             // clear the wrapped header
+    const scale = Math.max(0.5, Math.min(1.0, (height - topGap) / (VH * 0.62)));
+    const tx = 16 - M.left*scale + 70*scale;        // show the first lane labels + earliest years
+    const ty = topGap - M.top*scale + 10;
+    svg.transition().duration(dur||0).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+    return;
+  }
   const scale = Math.min(1.0, (height*0.94)/VH);
   const tx = 24;                                  // anchored to the left → earliest years first
   const ty = (height - scale*VH)/2;
@@ -931,12 +1041,23 @@ function fitNetwork(dur) {
   svg.transition().duration(dur||0).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
 }
 
-// ---------- Resize ----------
+// ---------- Resize (debounced; ignore minor mobile URL-bar height changes) ----------
+let resizeTimer = null, lastW = window.innerWidth, lastH = window.innerHeight;
 window.addEventListener("resize", () => {
-  width = window.innerWidth; height = window.innerHeight;
-  svg.attr("viewBox", [0,0,width,height]);
-  if (timeline) { setTimelineForces(); settle(120); fitTimeline(0); }
-  else { setNetworkForces(); sim.alpha(0.3).restart(); }
+  const w = window.innerWidth, h = window.innerHeight;
+  // On touch devices the address bar collapsing fires resize with only a small
+  // height delta and no width change — don't re-fit (it would fight the user's scroll).
+  if (w === lastW && Math.abs(h - lastH) < 120 && (window.matchMedia("(pointer: coarse)").matches)) {
+    width = w; height = h; svg.attr("viewBox", [0,0,width,height]); lastH = h; return;
+  }
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    width = window.innerWidth; height = window.innerHeight;
+    lastW = width; lastH = height;
+    svg.attr("viewBox", [0,0,width,height]);
+    if (timeline) { setTimelineForces(); settle(120); fitTimeline(0); }
+    else { setNetworkForces(); sim.alpha(0.3).restart(); }
+  }, 180);
 });
 
 // ---------- Theme application ----------
@@ -962,8 +1083,15 @@ document.querySelectorAll("#themebar .tbtn").forEach(btn => {
   btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
 });
 
-// fade hint
-setTimeout(() => { const h=document.getElementById("hint"); if(h) h.style.opacity="0"; }, 8000);
+// device-aware hint
+(() => {
+  const h = document.getElementById("hint");
+  if (h && isMobile()) h.textContent = "Drag to pan · pinch to zoom · tap a node for its story · ☰ filters fields";
+  setTimeout(() => { if (h) h.style.opacity = "0"; }, 8000);
+})();
+
+// keep layout button label sensible on touch
+if (isMobile()) document.getElementById("toggleLayout").textContent = "Network";
 
 // ---------- Initial render (static timeline) ----------
 setTimelineForces();
